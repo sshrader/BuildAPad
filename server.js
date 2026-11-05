@@ -219,6 +219,24 @@ function createApp(opts) {
       return;
     }
 
+    // The launch helper: text-only coin ideas in the pad's theme, in the mascot's voice. Same switch as the picture maker.
+    if (req.method === 'POST' && pathname === '/api/art/suggest') {
+      const noStore = Object.assign({}, JSON_TYPE, { 'Cache-Control': 'no-store', Connection: 'close' });
+      readJson(req, 1200).then(body => {
+        if (!body) return send(res, 400, JSON.stringify({ error: 'bad_request' }), noStore);
+        const slug = typeof body.pad === 'string' ? body.pad : '';
+        const set = padStore && slug ? padStore.settings(slug) : null;
+        const pad = set ? padStore.get(slug) : null;
+        if (!set || !pad) return send(res, 400, JSON.stringify({ error: 'bad_pad' }), noStore);
+        if (!set.ai.coinMaker) return send(res, 403, JSON.stringify({ error: 'ai_off' }), noStore);
+        if (typeof body.wallet === 'string' && padStore.accessFor(slug, body.wallet)) return send(res, 403, JSON.stringify({ error: 'not_allowed' }), noStore);
+        if (!padAiTake(slug, 'chat')) return send(res, 429, JSON.stringify({ error: 'pad_daily_limit' }), noStore);
+        const theme = [pad.name, pad.tagline, set.ai.style, set.page && set.page.about].filter(Boolean).join('. ');
+        return art.suggest({ theme, hint: body.hint, count: body.count }, { ip: clientIp(req), mascot: { name: set.ai.mascotName, persona: set.ai.mascotPersona } }).then(r => send(res, r.status, JSON.stringify(r.body), noStore));
+      }).catch(() => send(res, 500, JSON.stringify({ error: 'server_error' }), noStore));
+      return;
+    }
+
     // Solana Actions (Blinks): wallets and viewers read /actions.json, then GET the coin's action and POST to buy.
     if (pathname === '/actions.json' || pathname.startsWith('/api/actions/')) {
       const H = actions.HEADERS;

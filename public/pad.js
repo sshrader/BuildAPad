@@ -105,25 +105,65 @@
     const AIWHY = { ai_off: 'The AI picture maker is switched off on this launchpad.', not_allowed: 'This wallet cannot use this launchpad.', pad_daily_limit: 'This launchpad has used its AI pictures for today. Upload a picture instead, or try tomorrow.', daily_limit: 'The AI picture maker is resting for today. Upload a picture instead.', rate_limited: 'Too many tries. Wait a few minutes.', bad_prompt: 'Describe your coin in a few words.', blocked_prompt: 'That idea is not allowed. Ideas that copy a real person, brand or character are blocked.', generation_failed: 'The picture could not be drawn. Try again.', art_unavailable: 'The AI picture maker is not switched on for this site.' };
     const aiSay = (t, bad) => { const el = $('ai-status'); el.textContent = t; el.className = 'status' + (bad ? ' bad' : ''); };
     let aiBusy = false;
+    const aiBtns = ['ai-go', 'ai-ideas', 'ai-surprise'];
+    const aiLock = on => { aiBusy = on; aiBtns.forEach(i => { $(i).disabled = on; }); };
+    const who = () => (window.AnimalWallet && window.AnimalWallet.address) || undefined;
+    // Draws the picture for an idea and fills the form. `fill` (name, ticker, description) is used when the idea came from the helper.
+    async function draw(idea, fill) {
+      aiSay('Drawing… this takes about 10 seconds.');
+      const res = await fetch('/api/art/generate', { method: 'POST', headers: { 'Content-Type': 'application/json' }, body: JSON.stringify({ animal: idea, pad: ex.slug, wallet: who() }) });
+      const body = await res.json().catch(() => null);
+      if (!res.ok || !body || !body.imageUrl) { aiSay(AIWHY[body && body.error] || 'Could not draw that. Try again.', true); return false; }
+      // Pull the drawn picture back through the same shrink-and-check step as an upload, so there is one path to launch.
+      const blob = await (await fetch(body.imageUrl)).blob();
+      pic = await window.BapImage.square(new File([blob], 'ai.' + (blob.type === 'image/jpeg' ? 'jpg' : 'png'), { type: blob.type || 'image/png' }));
+      $('c-drop-img').src = pic.dataUrl; $('c-drop-img').hidden = false; $('c-drop-empty').hidden = true;
+      const f = fill || body;
+      $('c-name').value = f.name || body.name || ''; $('c-sym').value = String(f.ticker || body.ticker || '').toUpperCase(); $('c-desc').value = f.description || body.description || '';
+      aiSay('Done. Change anything you like, then press Continue.'); paint(); unstage();
+      return true;
+    }
+    async function ideas(count, hint) {
+      const res = await fetch('/api/art/suggest', { method: 'POST', headers: { 'Content-Type': 'application/json' }, body: JSON.stringify({ pad: ex.slug, wallet: who(), count, hint }) });
+      const body = await res.json().catch(() => null);
+      if (!res.ok || !body || !Array.isArray(body.ideas) || !body.ideas.length) { aiSay(AIWHY[body && body.error] || 'Could not think of ideas. Try again.', true); return null; }
+      return body.ideas;
+    }
+    const mascot = ex.mascotName || 'The mascot';
+    function showIdeas(list) {
+      const box = $('ai-list'); box.textContent = '';
+      list.forEach(i => {
+        const card = document.createElement('div'); card.className = 'idea';
+        const t = document.createElement('b'); t.textContent = i.name + ' $' + i.ticker;
+        const d = document.createElement('span'); d.className = 'hint'; d.textContent = i.description;
+        const row = document.createElement('div'); row.className = 'row';
+        const use = document.createElement('button'); use.type = 'button'; use.className = 'btn'; use.textContent = 'Use this';
+        use.addEventListener('click', () => { $('c-name').value = i.name; $('c-sym').value = i.ticker; $('c-desc').value = i.description; $('ai-idea').value = i.idea; aiSay('Filled in. Press Draw it for a picture, or add your own.'); paint(); unstage(); });
+        const dr = document.createElement('button'); dr.type = 'button'; dr.className = 'btn go'; dr.textContent = 'Use and draw';
+        dr.addEventListener('click', async () => { if (aiBusy) return; aiLock(true); try { await draw(i.idea, i); } catch (e) { aiSay('Could not draw that. Try again.', true); } aiLock(false); });
+        row.appendChild(use); row.appendChild(dr); card.appendChild(t); card.appendChild(d); card.appendChild(row); box.appendChild(card);
+      });
+      box.hidden = false;
+    }
+    $('ai-ideas').addEventListener('click', async () => {
+      if (aiBusy) return;
+      aiLock(true); aiSay(mascot + ' is thinking…');
+      try { const l = await ideas(3, $('ai-idea').value.trim()); if (l) { showIdeas(l); aiSay('Pick one, or ask again for more.'); } } catch (e) { aiSay('Could not think of ideas. Try again.', true); }
+      aiLock(false);
+    });
+    $('ai-surprise').addEventListener('click', async () => {
+      if (aiBusy) return;
+      aiLock(true); aiSay(mascot + ' is picking something…');
+      try { const l = await ideas(1, ''); if (l) await draw(l[0].idea, l[0]); } catch (e) { aiSay('Could not draw that. Try again.', true); }
+      aiLock(false);
+    });
     $('ai-go').addEventListener('click', async () => {
       if (aiBusy) return;
       const idea = $('ai-idea').value.trim();
       if (idea.length < 3) { aiSay(AIWHY.bad_prompt, true); return; }
-      aiBusy = true; $('ai-go').disabled = true; aiSay('Drawing… this takes about 10 seconds.');
-      try {
-        const res = await fetch('/api/art/generate', { method: 'POST', headers: { 'Content-Type': 'application/json' }, body: JSON.stringify({ animal: idea, pad: ex.slug, wallet: (window.AnimalWallet && window.AnimalWallet.address) || undefined }) });
-        const body = await res.json().catch(() => null);
-        if (!res.ok || !body || !body.imageUrl) { aiSay(AIWHY[body && body.error] || 'Could not draw that. Try again.', true); }
-        else {
-          // Pull the drawn picture back through the same shrink-and-check step as an upload, so there is one path to launch.
-          const blob = await (await fetch(body.imageUrl)).blob();
-          pic = await window.BapImage.square(new File([blob], 'ai.' + (blob.type === 'image/jpeg' ? 'jpg' : 'png'), { type: blob.type || 'image/png' }));
-          $('c-drop-img').src = pic.dataUrl; $('c-drop-img').hidden = false; $('c-drop-empty').hidden = true;
-          $('c-name').value = body.name || ''; $('c-sym').value = String(body.ticker || '').toUpperCase(); $('c-desc').value = body.description || '';
-          aiSay('Done. Change anything you like, then press Continue.'); paint(); unstage();
-        }
-      } catch (err) { aiSay('Could not draw that. Try again.', true); }
-      aiBusy = false; $('ai-go').disabled = false;
+      aiLock(true);
+      try { await draw(idea); } catch (err) { aiSay('Could not draw that. Try again.', true); }
+      aiLock(false);
     });
   }
 

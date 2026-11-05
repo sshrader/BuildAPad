@@ -339,7 +339,7 @@ function createLauncher(opts) {
         status: 200,
         body: {
           address: mint, curve: c.B.bondingCurveOf(mint).toBase58(), mint,
-          raisedSol: Number(curve.real_quote_reserves) / 1e9, thresholdSol: need,
+          raisedSol: complete ? need : Number(curve.real_quote_reserves) / 1e9, thresholdSol: need,
           progress: complete ? 1 : progress, marketCapSol,
           migrated: complete, curveFull: complete,
           splitOk: curve.creator === c.B.sharingConfigOf(mint).toBase58(), cluster

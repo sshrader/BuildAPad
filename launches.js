@@ -207,9 +207,12 @@ function createLaunches(opts) {
   }
 
   // The launch that used a given picture (the official coin), or null.
-  const findByArt = id => { const e = id ? entries.find(x => x.art === id) : null; return e ? { pool: e.pool, mint: e.mint, name: e.name, symbol: e.symbol } : null; };
+  // Every launch that used the picture, newest first. A coin can be prepared more than once (a declined wallet prompt leaves
+  // a record that never reaches the chain), so the caller checks which ones really exist.
+  const findAllByArt = id => (id ? entries.filter(x => x.art === id).sort((a, b) => b.createdAt - a.createdAt).map(e => ({ pool: e.pool, mint: e.mint, name: e.name, symbol: e.symbol })) : []);
+  const findByArt = id => findAllByArt(id)[0] || null;
 
-  return { record, list, detail, setSiteVerified, padOf, board, topCoins, findByArt, size: () => entries.length };
+  return { record, list, detail, setSiteVerified, padOf, board, topCoins, findByArt, findAllByArt, size: () => entries.length };
 }
 
 module.exports = { createLaunches };

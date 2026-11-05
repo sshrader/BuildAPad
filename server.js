@@ -98,12 +98,16 @@ function createApp(opts) {
     if (!founderDone) {
       if (Date.now() - founderAsked < 20000) return null;
       founderAsked = Date.now();
-      const e = launches.findByArt(founder.id);
-      if (!e) return null;
-      const d = await launches.detail(e.pool);
-      if (d.status !== 200) return null;
-      founderDone = { pool: e.pool, mint: e.mint, name: e.name, symbol: e.symbol };
-      founderStats = { at: Date.now(), d: d.body, fees: null };
+      // The newest launch of the picture that really exists on-chain is the official coin.
+      for (const e of launches.findAllByArt(founder.id).slice(0, 5)) {
+        const d = await launches.detail(e.pool);
+        if (d.status === 200) {
+          founderDone = { pool: e.pool, mint: e.mint, name: e.name, symbol: e.symbol };
+          founderStats = { at: Date.now(), d: d.body, fees: null };
+          break;
+        }
+      }
+      if (!founderDone) return null;
     }
     if (!founderStats || Date.now() - founderStats.at > 20000) {
       const at = Date.now();

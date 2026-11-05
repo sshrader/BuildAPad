@@ -308,3 +308,17 @@ test('top coins: ranked by SOL raised across pads, with the pad each one was lau
   assert.equal(top[0].progress, 0.75);
   assert.equal(l.topCoins(1).length, 1);
 });
+
+test('the official coin is the newest launch of its picture that really exists, even if an earlier attempt never reached the chain', async () => {
+  let t = 1000000;
+  const ART = 'ab12cd34ef56ab12';
+  const l = createLaunches({ inspect: chain(new Set([entry(8).pool])), now: () => t, logger: quiet, listTtlMs: 0 });
+  l.record(entry(7, { art: ART })); t += 1000;   // declined in the wallet: never on-chain
+  l.record(entry(8, { art: ART })); t += 1000;   // the real one
+  l.record(entry(9, { art: ART }));              // another declined attempt
+  const all = l.findAllByArt(ART);
+  assert.deepEqual(all.map(e => e.symbol), ['AN9', 'AN8', 'AN7']);
+  const real = [];
+  for (const e of all) { if ((await l.detail(e.pool)).status === 200) real.push(e.symbol); }
+  assert.deepEqual(real, ['AN8']);
+});

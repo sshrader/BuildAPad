@@ -280,3 +280,8 @@ details.trade[open] summary::before { transform: rotate(90deg); }
 .tbar i { display: block; height: 100%; width: 0; background: var(--accent); transition: width .4s; }
 .cp-fees { display: flex; flex-wrap: wrap; align-items: center; gap: 10px 14px; }
 #recent, #how, #about, #trade { scroll-margin-top: 16px; }
+
+.check { display: flex; align-items: center; gap: 10px; font-size: 14px; color: var(--muted); cursor: pointer; }
+.check input { width: 18px; height: 18px; accent-color: var(--accent); flex: none; margin: 0; }
+input[readonly] { opacity: .75; cursor: not-allowed; }
+label.check, .links-body label.check, .fields label.check { display: flex; flex-direction: row; align-items: center; gap: 10px; }

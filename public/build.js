@@ -84,6 +84,15 @@
     paint();
   }, msg => { $('f-logo-status').textContent = msg; $('f-logo-status').className = 'status bad'; });
 
+  // "Use my launchpad's link": fills the website with the page address this pad will get, and follows the address as it changes.
+  const useSelf = $('f-use-pad'), web = $('f-web');
+  function syncSelf() {
+    if (!useSelf.checked) return;
+    web.value = state.slug ? location.origin + '/p/' + state.slug : '';
+  }
+  useSelf.addEventListener('change', () => { web.readOnly = useSelf.checked; if (!useSelf.checked) web.value = ''; syncSelf(); });
+  ['f-name', 'f-slug'].forEach(id => $(id).addEventListener('input', syncSelf));
+
   // ----- Wallet
   document.addEventListener('animalpad:wallet', e => { wallet = (e.detail && e.detail.address) || null; paint(); });
   if (W && W.address) wallet = W.address;

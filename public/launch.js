@@ -168,4 +168,15 @@
       render();
     })
     .catch(() => { enabled = false; });
+  // "Use this launchpad's link": fills the website with this pad's own address and locks the box while ticked.
+  (function () {
+    const box = $('l-use-pad'), web = $('l-web'), slug = window.PAD && window.PAD.extra && window.PAD.extra.slug;
+    if (!box || !web) return;
+    if (!slug) { box.closest('label').hidden = true; return; }
+    let before = '';
+    box.addEventListener('change', () => {
+      if (box.checked) { before = web.value; web.value = location.origin + '/p/' + slug; web.readOnly = true; }
+      else { web.readOnly = false; web.value = before; }
+    });
+  })();
 })();

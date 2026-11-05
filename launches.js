@@ -8,6 +8,7 @@ const path = require('path');
 
 const B58 = /^[1-9A-HJ-NP-Za-km-z]{32,44}$/;
 const ART_ID = /^[0-9a-f]{16}$/;
+const PAD_SLUG = /^[a-z0-9][a-z0-9-]{1,28}[a-z0-9]$/;
 
 function createLaunches(opts) {
   const o = opts || {};
@@ -22,8 +23,8 @@ function createLaunches(opts) {
   const pageSize = o.pageSize || 24;
   const hidden = new Set(o.hidden || []);
 
-  let cache = null; // { at, items }
-  let running = null;
+  const caches = new Map(); // pad slug ('' for every pad) -> { at, items }
+  const runs = new Map();   // pad slug -> a list being built right now
   let entries = [];
   if (file) {
     try {
@@ -50,7 +51,7 @@ function createLaunches(opts) {
   function record(e) {
     const entry = {
       pool: e && e.pool, mint: e && e.mint, name: e && e.name, symbol: e && e.symbol, creator: e && e.creator,
-      art: e && ART_ID.test(e.art || '') ? e.art : '', preset: e && typeof e.preset === 'string' ? e.preset : '',
+      art: e && ART_ID.test(e.art || '') ? e.art : '', pad: e && PAD_SLUG.test(e.pad || '') ? e.pad : '', preset: e && typeof e.preset === 'string' ? e.preset : '',
       devBuySol: e && Number.isFinite(e.devBuySol) && e.devBuySol > 0 && e.devBuySol <= 5 ? e.devBuySol : 0,
       createdAt: now(), verified: false
     };
@@ -58,15 +59,15 @@ function createLaunches(opts) {
     const i = entries.findIndex(x => x.pool === entry.pool);
     if (i !== -1) return true; // a retry of the same launch
     entries.push(entry);
-    cache = null; // show it as soon as it is on-chain
+    caches.clear(); // show it as soon as it is on-chain
     if (entries.length > max) entries = entries.slice(entries.length - max);
     save();
     return true;
   }
 
   
-  async function build() {
-    const newest = entries.slice().sort((a, b) => b.createdAt - a.createdAt).filter(e => !hidden.has(e.pool)).slice(0, pageSize * 2);
+  async function build(padSlug) {
+    const newest = entries.slice().sort((a, b) => b.createdAt - a.createdAt).filter(e => !hidden.has(e.pool) && (!padSlug || e.pad === padSlug)).slice(0, pageSize * 2);
     const items = [];
     let changed = false;
     let failed = false;
@@ -80,7 +81,7 @@ function createLaunches(opts) {
           if (!e.verified) { e.verified = true; changed = true; }
           const rec = e.art ? artRecord(e.art) : null;
           items.push({
-            pool: e.pool, mint: e.mint, name: e.name, symbol: e.symbol, creator: e.creator, preset: e.preset, createdAt: e.createdAt,
+            pool: e.pool, mint: e.mint, name: e.name, symbol: e.symbol, creator: e.creator, pad: e.pad || '', preset: e.preset, createdAt: e.createdAt,
             imageUrl: rec ? '/art/' + rec.id + '.' + (rec.ext === 'jpg' ? 'jpg' : 'png') : '',
             raisedSol: r.body.raisedSol, thresholdSol: r.body.thresholdSol, progress: r.body.progress,
             migrated: r.body.migrated, curveFull: r.body.curveFull
@@ -100,21 +101,26 @@ function createLaunches(opts) {
     return { items: items.slice(0, pageSize), failed, pending };
   }
 
-  // The list for the page. Cached for a short time, and the last good one is kept if the RPC fails.
-  async function list() {
+  // The list for the page, for every pad or for one pad's slug. Cached for a short time, and the last good one is
+  // kept if the RPC fails.
+  async function list(padSlug) {
+    const key = PAD_SLUG.test(padSlug || '') ? padSlug : '';
+    const cache = caches.get(key);
     if (cache && now() - cache.at < listTtlMs) return cache.items;
-    if (!running) {
-      running = build().then(r => {
-        if (r.pending && !r.failed) cache = { at: now() - listTtlMs + Math.min(listTtlMs, 4000), items: r.items }; // look again in a few seconds
-        else if (!r.failed || !cache) cache = { at: now(), items: r.items };
-        else cache = { at: now() - listTtlMs + Math.min(listTtlMs, 5000), items: cache.items }; // retry soon, keep what we had
-        return cache.items;
+    if (!runs.has(key)) {
+      runs.set(key, build(key).then(r => {
+        const prev = caches.get(key);
+        if (r.pending && !r.failed) caches.set(key, { at: now() - listTtlMs + Math.min(listTtlMs, 4000), items: r.items }); // look again in a few seconds
+        else if (!r.failed || !prev) caches.set(key, { at: now(), items: r.items });
+        else caches.set(key, { at: now() - listTtlMs + Math.min(listTtlMs, 5000), items: prev.items }); // retry soon, keep what we had
+        return caches.get(key).items;
       }).catch(err => {
         logger.error('Launch list failed: ' + (err && err.message));
-        return cache ? cache.items : [];
-      }).finally(() => { running = null; });
+        const prev = caches.get(key);
+        return prev ? prev.items : [];
+      }).finally(() => { runs.delete(key); }));
     }
-    return running;
+    return runs.get(key);
   }
 
   // How the mascot feels, from how full its curve is.
@@ -136,7 +142,7 @@ function createLaunches(opts) {
     if (r.status !== 200) return { status: 502, body: { error: 'pool_read_failed' } };
     const rec = e.art ? artRecord(e.art) : null;
     return { status: 200, body: {
-      pool: e.pool, mint: e.mint, name: e.name, symbol: e.symbol, creator: e.creator, createdAt: e.createdAt,
+      pool: e.pool, mint: e.mint, name: e.name, symbol: e.symbol, creator: e.creator, pad: e.pad || '', createdAt: e.createdAt,
       description: rec && typeof rec.description === 'string' ? rec.description : '',
       links: rec && rec.links && typeof rec.links === 'object' ? rec.links : {},
       imageUrl: rec ? '/art/' + rec.id + '.' + (rec.ext === 'jpg' ? 'jpg' : 'png') : '',
@@ -157,7 +163,10 @@ function createLaunches(opts) {
     return true;
   }
 
-  return { record, list, detail, setSiteVerified, size: () => entries.length };
+  // Which pad a coin was launched on ('' for none). The server uses this, never the browser, to decide the fee split.
+  const padOf = pool => { const e = entries.find(x => x.pool === pool); return e ? e.pad || '' : ''; };
+
+  return { record, list, detail, setSiteVerified, padOf, size: () => entries.length };
 }
 
 module.exports = { createLaunches };

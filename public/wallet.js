@@ -69,6 +69,18 @@
     return sent && sent.signature ? sent.signature : String(sent);
   }
 
+  // Signs a line of text (no money moves). Used to prove a wallet's owner asked for something, such as building a pad.
+  // Returns the 64-byte signature as base64.
+  async function signMessage(text) {
+    const p = provider();
+    if (!p) { const e = new Error('no_wallet'); e.code = 'no_wallet'; throw e; }
+    const res = await p.signMessage(new TextEncoder().encode(text), 'utf8');
+    const sig = res && res.signature ? res.signature : res;
+    let bin = '';
+    for (let i = 0; i < sig.length; i++) bin += String.fromCharCode(sig[i]);
+    return btoa(bin);
+  }
+
   const sleep = ms => new Promise(r => setTimeout(r, ms));
 
   // Polls the server until the transaction is confirmed or failed, or time runs out.
@@ -90,5 +102,5 @@
 
   const noWallet = () => 'No Phantom wallet found. Install Phantom' + (window.AnimalNet && window.AnimalNet.main ? '' : ', switch it to Devnet (Settings, Developer Settings, Testnet Mode)') + ', then reload.';
 
-  window.AnimalWallet = { provider, connect, disconnect, signAndSend, confirm, get NO_WALLET() { return noWallet(); }, get address() { return address; } };
+  window.AnimalWallet = { provider, connect, disconnect, signAndSend, signMessage, confirm, get NO_WALLET() { return noWallet(); }, get address() { return address; } };
 })();

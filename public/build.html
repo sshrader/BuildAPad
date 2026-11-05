@@ -1,0 +1,136 @@
+<!doctype html>
+<html lang="en">
+<head>
+<meta charset="utf-8">
+<meta name="viewport" content="width=device-width, initial-scale=1, viewport-fit=cover">
+<title>Build a pad · {{name}}</title>
+<meta name="description" content="Design your own Solana launchpad: a name, a logo, colors and your cut of the fees.">
+<meta name="theme-color" content="#0a0b0e">
+<link rel="preconnect" href="https://fonts.googleapis.com">
+<link rel="preconnect" href="https://fonts.gstatic.com" crossorigin>
+<link rel="stylesheet" href="https://fonts.googleapis.com/css2?family=Bricolage+Grotesque:opsz,wght@12..96,500..800&family=Inter:wght@400..700&family=JetBrains+Mono:wght@400..600&display=swap">
+<link rel="icon" href="/icon.svg" type="image/svg+xml">
+<link rel="stylesheet" href="/app.css">
+</head>
+<body>
+<main class="wrap">
+  <header class="top">
+    <a class="brand" href="/"><img src="/icon.svg" alt="" width="30" height="30">{{name}}</a>
+    <nav class="nav" aria-label="Sections"><a href="/#pads">Pads</a><a href="/#how">How it works</a><a href="/build" aria-current="page">Build a pad</a></nav>
+    <div class="row">
+      <span class="chip-net" data-net-only="devnet">Devnet · test coins only</span>
+      <span class="chip-net live" data-net-only="mainnet-beta" hidden>Live · real SOL</span>
+    </div>
+  </header>
+
+  <div class="stack">
+    <h1 style="font-size:clamp(2rem,5vw,3.2rem)">Build a pad</h1>
+    <p class="lede">Make the choices on the left. The preview on the right is your real page.</p>
+  </div>
+
+  <div class="builder">
+    <form class="builder-form" id="form" novalidate autocomplete="off">
+      <section class="group" aria-labelledby="g-id">
+        <h3 id="g-id">Name and address</h3>
+        <label class="field">Pad name
+          <input type="text" id="f-name" maxlength="30" placeholder="Northwind" required>
+        </label>
+        <label class="field">Page address
+          <span class="slugrow"><span id="f-host">yoursite.xyz/p/</span><input type="text" id="f-slug" maxlength="30" placeholder="northwind" spellcheck="false" aria-describedby="f-slug-hint"></span>
+          <span class="hint" id="f-slug-hint">Lowercase letters, numbers and dashes. 3 to 30 characters.</span>
+        </label>
+        <label class="field">Tagline (optional)
+          <input type="text" id="f-tag" maxlength="90" placeholder="Fresh coins, fair fees.">
+        </label>
+      </section>
+
+      <section class="group" aria-labelledby="g-logo">
+        <h3 id="g-logo">Logo</h3>
+        <label class="drop" id="f-drop" tabindex="0">
+          <span id="f-drop-empty"><b>Drop a picture here</b><br>or click to choose one. Square works best.</span>
+          <img id="f-drop-img" alt="Your logo" hidden>
+          <input type="file" id="f-file" accept="image/png,image/jpeg,image/webp,image/gif">
+        </label>
+        <p class="status" id="f-logo-status" role="status"></p>
+      </section>
+
+      <section class="group" aria-labelledby="g-look">
+        <h3 id="g-look">Look</h3>
+        <div class="field">Accent color
+          <div class="swatches" id="f-swatches"></div>
+        </div>
+        <div class="field">Corners
+          <div class="seg" id="f-corners" role="group" aria-label="Corner style">
+            <button type="button" data-v="round" aria-pressed="true">Rounded</button>
+            <button type="button" data-v="sharp" aria-pressed="false">Sharp</button>
+          </div>
+        </div>
+      </section>
+
+      <section class="group" aria-labelledby="g-fees">
+        <h3 id="g-fees">Your cut of the fees</h3>
+        <div class="range">
+          <div class="range-top"><span>Pad owner share</span><b id="f-pct-out">15%</b></div>
+          <input type="range" id="f-pct" min="0" max="40" step="1" value="15" aria-label="Your share of creator fees, percent">
+          <div class="feebar" aria-hidden="true"><i class="f-launcher" id="b-l"></i><i class="f-owner" id="b-o"></i><i class="f-platform" id="b-p"></i></div>
+          <div class="feekey"><span class="k-launcher">Coin launcher <b id="k-l">75%</b></span><span class="k-owner">You <b id="k-o">15%</b></span><span class="k-platform">{{name}} <b id="k-p">10%</b></span></div>
+        </div>
+        <p class="hint">Paid by pump.fun's fee sharing, on-chain, to the wallet you sign with. The launcher always keeps at least half.</p>
+      </section>
+
+      <details class="group links" id="f-links">
+        <summary>Links (optional)</summary>
+        <div class="links-body">
+          <label>Website <input type="text" id="f-web" maxlength="200" placeholder="https://northwind.xyz" inputmode="url"></label>
+          <label>X <input type="text" id="f-x" maxlength="60" placeholder="@northwind or a post link"></label>
+          <label>Telegram <input type="text" id="f-tg" maxlength="60" placeholder="@northwind"></label>
+        </div>
+      </details>
+
+      <section class="sign" aria-labelledby="g-sign">
+        <h3 id="g-sign" style="margin:0">Sign and publish</h3>
+        <p class="hint">Your wallet signs one line of text that says what you are building. No money moves and nothing is sent to the chain. That signature makes this wallet the owner of the pad and the receiver of your fee share.</p>
+        <div class="row">
+          <button type="button" class="btn go big" id="f-connect">Connect wallet</button>
+          <button type="submit" class="btn go big" id="f-go" hidden>Build my pad</button>
+        </div>
+        <p class="status" id="f-status" role="status"></p>
+      </section>
+    </form>
+
+    <aside class="preview" aria-label="Preview of your pad">
+      <div class="mock" id="pv">
+        <div class="mock-bar"><i></i><i></i><i></i><span id="pv-url">/p/northwind</span></div>
+        <div class="mock-body">
+          <div class="mock-head">
+            <div class="mock-logo" id="pv-logo"><span id="pv-letter">N</span><img id="pv-img" alt="" hidden></div>
+            <div><div class="mock-name" id="pv-name">Your pad</div><div class="mock-tag" id="pv-tag">Launch a coin.</div></div>
+          </div>
+          <div class="mock-grid"><div class="mock-field">Coin name</div><div class="mock-field">Ticker</div></div>
+          <div class="mock-field" style="height:56px;align-items:flex-start;padding-top:10px">Description</div>
+          <div class="mock-btn">Launch coin</div>
+          <div class="mock-split">
+            <div class="feebar"><i class="f-launcher" id="pv-l"></i><i class="f-owner" id="pv-o"></i><i class="f-platform" id="pv-p"></i></div>
+          </div>
+        </div>
+      </div>
+      <p class="hint">This is how visitors see your page. Coins are launched on pump.fun.</p>
+    </aside>
+  </div>
+
+  <div class="done" id="done" hidden>
+    <h2>Your pad is live</h2>
+    <a class="url" id="done-url" href="/"></a>
+    <div class="row"><a class="btn go" id="done-open" href="/">Open your pad</a><button type="button" class="btn" id="done-copy">Copy link</button></div>
+    <p class="hint">Share this link. Anyone who launches a coin there pays you your fee share on-chain.</p>
+  </div>
+
+  <p class="foot">Pads that copy a real person, brand or project are not allowed, and names are checked. {{name}} can take down a pad that breaks the rules.</p>
+</main>
+<script src="/net.js"></script>
+<script src="/wallet.js"></script>
+<script src="/walletbar.js"></script>
+<script src="/image.js"></script>
+<script src="/build.js"></script>
+</body>
+</html>

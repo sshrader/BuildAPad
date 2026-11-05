@@ -100,7 +100,8 @@
   let lastList = [];
   async function load() {
     try {
-      const res = await fetch('/api/launches', { cache: 'no-store', headers: { Accept: 'application/json' } });
+      const padSlug = window.PAD.extra && window.PAD.extra.slug;
+      const res = await fetch('/api/launches' + (padSlug ? '?pad=' + encodeURIComponent(padSlug) : ''), { cache: 'no-store', headers: { Accept: 'application/json' } });
       const body = await res.json();
       const list = Array.isArray(body && body.launches) ? body.launches : [];
       const box = $('feed');
@@ -108,7 +109,7 @@
       list.forEach(c => box.appendChild(card(c)));
       lastList = list;
       drawCurve(list);
-      $('feed-note').textContent = list.length ? '' : 'No launches yet. Draw ' + window.PAD.aSubject + ' above and be the first.';
+      $('feed-note').textContent = list.length ? '' : 'No coins yet. Launch the first one above.';
     } catch (err) {
       $('feed-note').textContent = 'Could not load the latest launches. Try again in a moment.';
     }
@@ -125,7 +126,8 @@
     .then(info => {
       const t = info && info.split;
       if (!t || !Number.isFinite(t.creatorPct) || !Number.isFinite(t.platformPct)) return;
-      $('fee-note-how').textContent = 'Every trade pays a creator fee. ' + t.creatorPct + '% of it goes to the wallet that launched the coin and ' + t.platformPct + '% to ' + window.PAD.name + '. Anyone can send the fees out; they always go to those two wallets.';
+      const ex = window.PAD.extra, owner = ex && ex.ownerPct > 0 ? Math.min(ex.ownerPct, 50 - t.platformPct) : 0;
+      $('fee-note-how').textContent = 'Every trade pays a creator fee, shared on-chain: ' + (t.creatorPct - owner) + '% to the wallet that launched the coin, ' + (owner ? owner + '% to the owner of ' + window.PAD.name + ', ' : '') + t.platformPct + '% to ' + window.PAD.platform + '. Anyone can send the fees out; they always go to the wallets in the split.';
     })
     .catch(() => { /* the generic sentence stays */ });
 })();

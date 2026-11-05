@@ -11,6 +11,7 @@ const { createActions } = require('./actions');
 const { createVerifier } = require('./verify');
 const { createArt, ID_RE, normalizeLinks, blockedWord } = require('./art');
 const pads = require('./pads');
+const { createPadStore } = require('./padstore');
 
 const PUBLIC_DIR = path.join(__dirname, 'public');
 
@@ -74,6 +75,17 @@ function createApp(opts) {
   const launcher = opts.launcher || null;
   const founder = opts.founder || null; // { id, wallet, name, ticker, description }
   const pad = opts.pad || pads.load('buildapad');
+  const padStore = opts.padStore || null;
+  // Picture uploads are limited per visitor, like pad creation.
+  const uploadHits = new Map();
+  const uploadAllowed = ip => {
+    const t = Date.now();
+    const recent = (uploadHits.get(ip) || []).filter(x => t - x < 3600000);
+    if (recent.length >= 30) { uploadHits.set(ip, recent); return false; }
+    recent.push(t); uploadHits.set(ip, recent);
+    if (uploadHits.size > 2000) for (const [k, v] of uploadHits) if (!v.some(x => t - x < 3600000)) uploadHits.delete(k);
+    return true;
+  };
   const actions = createActions({ launches, launcher, cluster: launcher && launcher.info ? launcher.info().cluster : 'devnet' });
   const verifier = opts.verifier || createVerifier({});
   // Website checks fetch other people's sites, so they are limited per visitor and per coin.
@@ -90,6 +102,7 @@ function createApp(opts) {
   return http.createServer((req, res) => {
     let url;
     let pathname;
+    let servePad = pad;
     try {
       url = new URL(req.url, 'http://localhost');
       pathname = decodeURIComponent(url.pathname);
@@ -98,6 +111,38 @@ function createApp(opts) {
     }
     if (pathname.indexOf('\0') !== -1) {
       return send(res, 400, 'Bad request', TEXT_TYPE);
+    }
+
+    // A coin's picture, uploaded by the person launching it. The page shrinks it to a square first; here it is checked
+    // by its first bytes and kept like any other picture.
+    if (req.method === 'POST' && pathname === '/api/art/upload') {
+      const noStore = Object.assign({}, JSON_TYPE, { 'Cache-Control': 'no-store', Connection: 'close' });
+      readJson(req, 700000).then(body => {
+        if (!body || typeof body.image !== 'string') return send(res, 400, JSON.stringify({ error: 'bad_request' }), noStore);
+        if (!uploadAllowed(clientIp(req))) return send(res, 429, JSON.stringify({ error: 'rate_limited' }), noStore);
+        const name = cleanText(body.name, 32), ticker = String(body.ticker || '').replace(/^\$/, '').trim().toUpperCase();
+        if (!name || !/^[A-Z0-9]{1,10}$/.test(ticker)) return send(res, 400, JSON.stringify({ error: 'bad_request' }), noStore);
+        if (blockedWord(name + ' ' + ticker)) return send(res, 400, JSON.stringify({ error: 'blocked_name' }), noStore);
+        const description = cleanText(body.description || '', 200);
+        if (description && blockedWord(description)) return send(res, 400, JSON.stringify({ error: 'blocked_name' }), noStore);
+        const id = art.seed(Buffer.from(body.image, 'base64'), { name, ticker, description });
+        if (!id) return send(res, 400, JSON.stringify({ error: 'bad_image' }), noStore);
+        const rec = art.record(id);
+        send(res, 200, JSON.stringify({ id, imageUrl: '/art/' + id + '.' + (rec && rec.ext === 'jpg' ? 'jpg' : 'png'), name, ticker, description }), noStore);
+      }).catch(() => send(res, 500, JSON.stringify({ error: 'server_error' }), noStore));
+      return;
+    }
+
+    // Building a launchpad: the owner's wallet signed the details, the server checks and stores them.
+    if (req.method === 'POST' && pathname === '/api/pads') {
+      const noStore = Object.assign({}, JSON_TYPE, { 'Cache-Control': 'no-store', Connection: 'close' });
+      if (!padStore) return send(res, 404, JSON.stringify({ error: 'not_found' }), noStore);
+      readJson(req, 700000).then(body => {
+        if (!body) return send(res, 400, JSON.stringify({ error: 'bad_request' }), noStore);
+        const r = padStore.create(body, { ip: clientIp(req) });
+        send(res, r.status, JSON.stringify(r.body), noStore);
+      }).catch(() => send(res, 500, JSON.stringify({ error: 'server_error' }), noStore));
+      return;
     }
 
     // The POST routes: each asks the server to prepare an unsigned transaction for the wallet to sign.
@@ -214,10 +259,19 @@ function createApp(opts) {
         }
         // The payout can be sent by any wallet, so the page's "creator" field is just the wallet that will pay the network fee.
         if (action === 'distribute' && body.payer === undefined) body.payer = body.creator;
-        return launcher[action](body, { ip: clientIp(req), baseUrl: baseUrlFor(req), founder: founder, hasArt: id => Boolean(art.get(id)) })
+        // The pad decides the fee split, and it comes from the server's own records: the pad named when the coin was
+        // prepared, then the one stored with the coin. Nothing about fees is taken from the browser.
+        let padCtx = null, padSlug = '';
+        if (padStore && (action === 'prepare' || action === 'step')) {
+          padSlug = action === 'prepare' ? String(body.pad || '') : (launches ? launches.padOf(String(body.mint || '')) : '');
+          const rec = padSlug ? padStore.get(padSlug) : null;
+          if (action === 'prepare' && padSlug && !rec) return send(res, 400, JSON.stringify({ error: 'bad_pad' }), noStore);
+          if (rec) padCtx = { owner: rec.ownerWallet, ownerPct: rec.ownerPct };
+        }
+        return launcher[action](body, { ip: clientIp(req), baseUrl: baseUrlFor(req), founder: founder, pad: padCtx, hasArt: id => Boolean(art.get(id)) })
           .then(r => {
             if (action === 'prepare' && r.status === 200 && launches) {
-              launches.record({ pool: r.body.pool, mint: r.body.mint, name: cleanText(body.name, 32), symbol: String(body.symbol || '').replace(/^\$/, '').trim().toUpperCase(), creator: body.creator, art: body.art, preset: '', devBuySol: r.body.firstBuySol });
+              launches.record({ pool: r.body.pool, mint: r.body.mint, name: cleanText(body.name, 32), symbol: String(body.symbol || '').replace(/^\$/, '').trim().toUpperCase(), creator: body.creator, art: body.art, pad: padSlug, preset: '', devBuySol: r.body.firstBuySol });
             }
             if (action === 'prepare' && r.status === 200 && typeof body.art === 'string') {
               // Links are saved, then the picture is kept for good and its links are frozen.
@@ -232,6 +286,28 @@ function createApp(opts) {
 
     if (req.method !== 'GET' && req.method !== 'HEAD') {
       return send(res, 405, 'Method not allowed', Object.assign({ Allow: 'GET, HEAD' }, TEXT_TYPE));
+    }
+
+    // Launchpads: the list, one pad, and the numbers the builder needs (what the platform keeps, the most an owner can take).
+    if (pathname === '/api/builder/config') {
+      const info = launcher ? launcher.info() : { enabled: false, cluster: 'devnet', platformPct: 10 };
+      const body = { enabled: Boolean(padStore && info.enabled), cluster: info.cluster, platformPct: padStore ? padStore.platformPct : info.platformPct, maxOwnerPct: padStore ? padStore.maxOwnerPct : 0 };
+      return send(res, 200, JSON.stringify(body), Object.assign({}, JSON_TYPE, { 'Cache-Control': 'no-store' }));
+    }
+    if (pathname === '/api/pads') {
+      return send(res, 200, JSON.stringify({ pads: padStore ? padStore.list(12) : [] }), Object.assign({}, JSON_TYPE, { 'Cache-Control': 'public, max-age=15' }));
+    }
+    const pm = /^\/api\/pads\/([a-z0-9-]{2,30})$/.exec(pathname);
+    if (pm) {
+      const rec = padStore ? padStore.get(pm[1]) : null;
+      if (!rec) return send(res, 404, JSON.stringify({ error: 'not_found' }), Object.assign({}, JSON_TYPE, { 'Cache-Control': 'no-store' }));
+      return send(res, 200, JSON.stringify({ pad: rec }), Object.assign({}, JSON_TYPE, { 'Cache-Control': 'no-store' }));
+    }
+    const lm = /^\/pad-logo\/([a-z0-9-]{2,30})\.(png|jpg)$/.exec(pathname);
+    if (lm) {
+      const l = padStore ? padStore.logo(lm[1]) : null;
+      if (!l || l.ext !== lm[2]) return send(res, 404, 'Not found', TEXT_TYPE);
+      return send(res, 200, req.method === 'HEAD' ? '' : l.buf, { 'Content-Type': l.ext === 'jpg' ? 'image/jpeg' : 'image/png', 'Cache-Control': 'public, max-age=3600' });
     }
 
     // Whether launching is switched on, so the page knows whether to offer it.
@@ -257,7 +333,7 @@ function createApp(opts) {
     if (pathname === '/api/launches') {
       const noStore = Object.assign({}, JSON_TYPE, { 'Cache-Control': 'public, max-age=15' });
       if (!launches) return send(res, 200, JSON.stringify({ launches: [] }), noStore);
-      launches.list().then(items => send(res, 200, req.method === 'HEAD' ? '' : JSON.stringify({ launches: items }), noStore))
+      launches.list(url.searchParams.get('pad') || '').then(items => send(res, 200, req.method === 'HEAD' ? '' : JSON.stringify({ launches: items }), noStore))
         .catch(() => send(res, 500, JSON.stringify({ error: 'server_error' }), Object.assign({}, JSON_TYPE, { 'Cache-Control': 'no-store' })));
       return;
     }
@@ -276,6 +352,19 @@ function createApp(opts) {
       })
         .catch(() => send(res, 500, JSON.stringify({ error: 'server_error' }), noStore));
       return;
+    }
+
+    // The pages: the home page, the builder, and each built launchpad at /p/<name>.
+    if (pathname === '/') pathname = '/home.html';
+    else if (pathname === '/build') pathname = '/build.html';
+    const pp = /^\/p\/([a-z0-9-]{2,30})\/?$/.exec(pathname);
+    if (pp) {
+      const built = padStore ? padStore.toPad(pp[1]) : null;
+      if (!built) return send(res, 404, 'No launchpad here. Build one at /build.', TEXT_TYPE);
+      servePad = built;
+      pathname = '/pad.html';
+    } else if (pathname === '/pad.html') {
+      return send(res, 404, 'Not found', TEXT_TYPE); // only reachable as /p/<name>
     }
 
     // A coin's own page. The page itself is the same for every coin; it reads the address from the link.
@@ -315,7 +404,7 @@ function createApp(opts) {
       return send(res, 200, JSON.stringify(body), JSON_TYPE);
     }
 
-    if (pathname.endsWith('/')) pathname += 'index.html';
+    if (pathname.endsWith('/')) pathname += 'home.html';
     const file = path.join(PUBLIC_DIR, pathname);
     if (!file.startsWith(PUBLIC_DIR + path.sep)) {
       return send(res, 403, 'Forbidden', TEXT_TYPE);
@@ -335,7 +424,7 @@ function createApp(opts) {
       }
       const ext = path.extname(file).toLowerCase();
       const type = TYPES[ext] || 'application/octet-stream';
-      if (ext === '.html') data = Buffer.from(pads.applyToHtml(data.toString('utf8'), pad, { origin: baseUrlFor(req) }), 'utf8');
+      if (ext === '.html') data = Buffer.from(pads.applyToHtml(data.toString('utf8'), servePad, { origin: baseUrlFor(req), platform: pad.name }), 'utf8');
       send(res, 200, req.method === 'HEAD' ? '' : data, { 'Content-Type': type, 'Cache-Control': 'no-cache' });
     });
   });
@@ -377,6 +466,11 @@ if (require.main === module) {
     rpcUrl: process.env.LAUNCH_RPC_URL || undefined
   });
   const launchesFile = env('LAUNCHES_FILE') || (dataDir ? path.join(dataDir, cluster === 'devnet' ? 'launches.json' : 'launches.' + cluster + '.json') : '');
+  const padStore = createPadStore({
+    file: dataDir ? path.join(dataDir, cluster === 'devnet' ? 'padstore.json' : 'padstore.' + cluster + '.json') : '',
+    logoDir: dataDir ? path.join(dataDir, 'pad-logos') : '',
+    platformPct: launcher.info().platformPct
+  });
   const launches = createLaunches({
     file: launchesFile,
     inspect: address => launcher.inspect(address),
@@ -405,7 +499,7 @@ if (require.main === module) {
     const id = art.seed(buf, text);
     if (id) founder = Object.assign({ id, ext: 'png', wallet: founderWallet, buf: buf }, text);
   }
-  const server = createApp({ art, launcher, launches, founder, pad, verifier: createVerifier({ secret: verifySecret || undefined }) });
+  const server = createApp({ art, launcher, launches, founder, pad, padStore, verifier: createVerifier({ secret: verifySecret || undefined }) });
   server.listen(PORT, '0.0.0.0', () => {
     console.log(pad.name + ' listening on port ' + PORT + (art.info().enabled ? ' (picture studio on, ' + art.provider + ')' : ' (picture studio OFF: ' + art.reason + '; provider ' + art.provider + ')') + (artDir ? ' (pictures saved in ' + artDir + ')' : ' (pictures in memory only: no volume)') +
       (launcher.info().enabled ? ' (' + cluster + ' launch on)' : ' (' + cluster + ' launch off: set PLATFORM_FEE_WALLET)') + (launchesFile ? ' (launch list saved in ' + launchesFile + ')' : ' (launch list in memory only)'));

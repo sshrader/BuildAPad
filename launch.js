@@ -72,8 +72,8 @@ function createLauncher(opts) {
   let tableCache = null;
 
   function info() {
-    const out = { enabled, cluster, protocol: 'pump.fun', atomic: Boolean(lookupTable) };
-    if (enabled) out.split = { creatorPct: 100 - platformPct, platformPct };
+    const out = { enabled, cluster, protocol: 'pump.fun', atomic: Boolean(lookupTable), platformPct };
+    if (enabled) { out.split = { creatorPct: 100 - platformPct, platformPct }; out.platformWallet = platformWallet; }
     return out;
   }
 
@@ -146,9 +146,21 @@ function createLauncher(opts) {
     return tx.serialize({ requireAllSignatures: false, verifySignatures: false }).toString('base64');
   }
 
-  const shares = creator => (creator === platformWallet
-    ? [{ address: creator, bps: 10000 }]
-    : [{ address: creator, bps: (100 - platformPct) * 100 }, { address: platformWallet, bps: platformPct * 100 }]);
+  // A launchpad built with BuildAPad adds its owner as a third shareholder: { owner, ownerPct }. The launcher always
+  // keeps at least half, and a wallet that appears twice (the owner launching on their own pad) is paid once.
+  const ownerPctOf = pad => (pad && typeof pad.owner === 'string' && B58_RE.test(pad.owner) && Number.isInteger(pad.ownerPct) && pad.ownerPct > 0 ? Math.min(pad.ownerPct, 50 - platformPct) : 0);
+  const splitFor = pad => { const ownerPct = ownerPctOf(pad); return { creatorPct: 100 - platformPct - ownerPct, ownerPct, platformPct }; };
+  const shares = (creator, pad) => {
+    const sp = splitFor(pad);
+    const parts = [[creator, sp.creatorPct], [platformWallet, sp.platformPct]];
+    if (sp.ownerPct) parts.push([pad.owner, sp.ownerPct]);
+    const merged = [];
+    parts.forEach(([address, pct]) => {
+      const hit = merged.find(m => m.address === address);
+      if (hit) hit.bps += pct * 100; else merged.push({ address, bps: pct * 100 });
+    });
+    return merged;
+  };
 
   function parseBuy(v) {
     const n = v === undefined || v === null || v === '' ? 0 : Number(v);
@@ -199,7 +211,7 @@ function createLauncher(opts) {
         ixs = budget(c, CU.create + CU.buy).concat([ix], buyInstructions(c, creatorPk, mint, fresh, firstBuySol, 1000, glob));
       }
       const transaction = await toTx(c, ixs, creatorPk, [mintKp], table);
-      return { status: 200, body: { transaction, mint, pool: mint, curve: c.B.bondingCurveOf(mintKp.publicKey).toBase58(), firstBuySol, atomic, split: info().split, cluster } };
+      return { status: 200, body: { transaction, mint, pool: mint, curve: c.B.bondingCurveOf(mintKp.publicKey).toBase58(), firstBuySol, atomic, split: splitFor(ctx && ctx.pad), cluster } };
     } catch (err) {
       logger.error('Launch prepare failed: ' + (err && err.stack ? err.stack : 'unknown error'));
       return { status: 502, body: { error: 'prepare_failed' } };
@@ -227,7 +239,7 @@ function createLauncher(opts) {
         // Fees that have built up on the curve must be swept before the creator is swapped for the split.
         const ixs = [];
         if (Number(curve.creator_fee || 0n) > 0) ixs.push(c.B.sweepCreatorFee({ payer: creatorPk, mint: b.mint, creator: creatorPk }));
-        ixs.push(c.B.createSharingConfig({ mint: b.mint, payer: creatorPk }), c.B.setShares({ mint: b.mint, authority: creatorPk, shareholders: shares(b.creator), currentShareholders: [creatorPk] }));
+        ixs.push(c.B.createSharingConfig({ mint: b.mint, payer: creatorPk }), c.B.setShares({ mint: b.mint, authority: creatorPk, shareholders: shares(b.creator, ctx && ctx.pad), currentShareholders: [creatorPk] }));
         return { status: 200, body: { step: 'split', transaction: await toTx(c, budget(c, CU.split).concat(ixs), creatorPk, null, table), cluster } };
       }
       if (curve.creator !== sharing) return { status: 403, body: { error: 'not_creator' } };
@@ -391,7 +403,18 @@ function createLauncher(opts) {
       const curve = await readCurve(c, mint);
       if (!curve) return { status: 404, body: { error: 'pool_not_found' } };
       const splitOk = curve.creator === c.B.sharingConfigOf(mint).toBase58();
-      return { status: 200, body: { mint, pendingSol: await pending(c, mint, curve), splitOk, creatorPct: 100 - platformPct, platformPct, cluster } };
+      // Who gets what is read from the coin's own fee split on-chain, so a pad's owner share shows up too.
+      let holders = [];
+      if (splitOk) {
+        try {
+          const acc = await c.connection.getAccountInfo(c.B.sharingConfigOf(mint));
+          const cfg = acc ? pump.decodeAccount(pump.IDLS.fees, 'SharingConfig', acc.data, c.web3) : null;
+          holders = ((cfg && cfg.shareholders) || []).map(h => ({ address: String(h.address), pct: Number(h.share_bps) / 100 }));
+        } catch (e) { holders = []; }
+      }
+      const platformHeld = holders.find(h => h.address === platformWallet);
+      const pp = platformHeld ? platformHeld.pct : platformPct;
+      return { status: 200, body: { mint, pendingSol: await pending(c, mint, curve), splitOk, creatorPct: 100 - pp, platformPct: pp, shares: holders, platformWallet, cluster } };
     } catch (err) {
       logger.error('Launch fees read failed: ' + (err && err.stack ? err.stack : 'unknown error'));
       return { status: 502, body: { error: 'fees_read_failed' } };

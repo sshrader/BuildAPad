@@ -389,4 +389,4 @@ function createArt(opts) {
   return { info, generate, chat, get, record, pin, seed, setLinks, prune, provider, reason };
 }
 
-module.exports = { createArt, ID_RE, blockedWord, normalizeLinks };
+module.exports = { createArt, ID_RE, blockedWord, normalizeLinks, imageType };

@@ -39,7 +39,7 @@ test('the fee split is validated, and launching is off without a platform wallet
   assert.throws(() => createLauncher({ platformWallet: PLATFORM, platformSharePct: 80 }), /PLATFORM_SHARE_PCT/);
   assert.throws(() => createLauncher({ platformWallet: PLATFORM, platformSharePct: 2.5 }), /PLATFORM_SHARE_PCT/);
   const on = createLauncher({ platformWallet: PLATFORM });
-  assert.deepEqual(on.info(), { enabled: true, cluster: 'devnet', protocol: 'pump.fun', atomic: false, split: { creatorPct: 80, platformPct: 20 } });
+  assert.deepEqual(on.info(), { enabled: true, cluster: 'devnet', protocol: 'pump.fun', atomic: false, platformPct: 20, platformWallet: PLATFORM, split: { creatorPct: 80, platformPct: 20 } });
   assert.equal(createLauncher({ platformWallet: PLATFORM, platformSharePct: '30' }).info().split.creatorPct, 70);
   assert.equal(createLauncher({}).info().enabled, false);
 });
@@ -54,7 +54,7 @@ test('prepare builds an unsigned create transaction signed only by the new mint'
   assert.equal(t.instructions.filter(i => i.program === pump.PUMP).length, 1);
   assert.equal(r.body.pool, r.body.mint);
   assert.equal(r.body.cluster, 'devnet');
-  assert.deepEqual(r.body.split, { creatorPct: 80, platformPct: 20 });
+  assert.deepEqual(r.body.split, { creatorPct: 80, ownerPct: 0, platformPct: 20 });
   // the ticker is cleaned, and the metadata link carries name and symbol
   const create = t.instructions.find(i => i.program === pump.PUMP);
   assert.ok(Buffer.from(create.data, 'hex').includes(Buffer.from('LNTRN')));
@@ -381,7 +381,7 @@ test('server: launch routes work, and POST is allowed nowhere else', async () =>
   const { launcher, st } = make();
   await withServer({ feed, launcher }, async base => {
     const cfg = await (await fetch(base + '/api/launch/config')).json();
-    assert.deepEqual(cfg, { enabled: true, cluster: 'devnet', protocol: 'pump.fun', atomic: false, split: { creatorPct: 80, platformPct: 20 } });
+    assert.deepEqual(cfg, { enabled: true, cluster: 'devnet', protocol: 'pump.fun', atomic: false, platformPct: 20, platformWallet: PLATFORM, split: { creatorPct: 80, platformPct: 20 } });
     const post = (p, body) => fetch(base + p, { method: 'POST', headers: { 'Content-Type': 'application/json' }, body });
     const ok = await post('/api/launch/prepare', JSON.stringify(good));
     assert.equal(ok.status, 200);
@@ -465,4 +465,24 @@ test('server: admin fee routes and the /admin page', async () => {
   await withServer({ feed }, async base => {
     assert.equal((await fetch(base + '/api/admin/fees')).status, 503);
   });
+});
+
+test('a launchpad owner becomes a third shareholder; a wallet that appears twice is paid once', async () => {
+  const { launcher, st } = make();
+  const OWNER = key();
+  const holders = async (creator, pad) => {
+    const mint = key();
+    st.putCurve(mint, { creator });
+    const r = await launcher.step({ mint, creator }, Object.assign({ pad }, ctx));
+    const set = Buffer.from(tx(r.body.transaction).instructions.filter(i => i.program === pump.PUMP_FEES)[1].data, 'hex');
+    const n = set.readUInt32LE(8), out = [];
+    for (let i = 0; i < n; i++) out.push(set.readUInt16LE(8 + 4 + i * 34 + 32));
+    return out;
+  };
+  assert.deepEqual(await holders(CREATOR, { owner: OWNER, ownerPct: 15 }), [6500, 2000, 1500]); // launcher, platform, owner
+  assert.deepEqual(await holders(OWNER, { owner: OWNER, ownerPct: 15 }), [8000, 2000]);          // the owner launching on their own pad
+  assert.deepEqual(await holders(CREATOR, { owner: OWNER, ownerPct: 40 }), [5000, 2000, 3000]); // capped so the launcher keeps at least half
+  assert.deepEqual(await holders(CREATOR, null), [8000, 2000]);
+  const made = await launcher.prepare(good, Object.assign({ pad: { owner: OWNER, ownerPct: 15 } }, ctx));
+  assert.deepEqual(made.body.split, { creatorPct: 65, ownerPct: 15, platformPct: 20 });
 });

@@ -77,7 +77,11 @@ function normalize(raw, file) {
 
   const t = raw.theme && typeof raw.theme === 'object' && !Array.isArray(raw.theme) ? raw.theme : {};
   if (raw.theme !== undefined && t !== raw.theme) fail(file, '"theme" must be an object.');
-  pad.theme = { dark: colors(file, 'dark', t.dark), light: colors(file, 'light', t.light), fontDisplay: '', fontBody: '', fontsUrl: '' };
+  pad.theme = { dark: colors(file, 'dark', t.dark), light: colors(file, 'light', t.light), fontDisplay: '', fontBody: '', fontsUrl: '', radius: null };
+  if (t.radius !== undefined) {
+    if (!Number.isFinite(t.radius) || t.radius < 0 || t.radius > 32) fail(file, 'theme.radius must be a number of pixels from 0 to 32.');
+    pad.theme.radius = Math.round(t.radius);
+  }
   ['fontDisplay', 'fontBody'].forEach(k => {
     if (t[k] === undefined) return;
     if (typeof t[k] !== 'string' || !FONT_RE.test(t[k])) fail(file, 'theme.' + k + ' must be a font name such as "Sora" (letters, digits and spaces).');
@@ -128,7 +132,7 @@ function themeCss(pad) {
   const lines = [];
   const vars = o => Object.keys(o).map(k => '--' + k + ':' + o[k] + ';').join('');
   const t = pad.theme;
-  const dark = vars(t.dark) + (t.fontBody ? '--font:"' + t.fontBody + '",system-ui,sans-serif;' : '') + (t.fontDisplay ? '--display:"' + t.fontDisplay + '",system-ui,sans-serif;' : '');
+  const dark = vars(t.dark) + (t.radius !== null && t.radius !== undefined ? '--r:' + t.radius + 'px;' : '') + (t.fontBody ? '--font:"' + t.fontBody + '",system-ui,sans-serif;' : '') + (t.fontDisplay ? '--display:"' + t.fontDisplay + '",system-ui,sans-serif;' : '');
   if (dark) lines.push(':root{' + dark + '}');
   const light = vars(t.light);
   if (light) lines.push(':root[data-theme="light"]{' + light + '}');
@@ -137,20 +141,21 @@ function themeCss(pad) {
 
 // What the page scripts may know about the pad.
 function publicPad(pad) {
-  return { id: pad.id, name: pad.name, subject: pad.subject, aSubject: pad.aSubject, subjects: pad.subjects, ideas: pad.ideas };
+  return { id: pad.id, name: pad.name, tagline: pad.tagline, subject: pad.subject, aSubject: pad.aSubject, subjects: pad.subjects, ideas: pad.ideas, extra: pad.extra || null };
 }
 
 const TOKENS = ['name', 'subject', 'aSubject', 'tagline', 'description', 'heroTitle', 'heroLede', 'promptLabel', 'promptPlaceholder', 'emptyText', 'aboutDevnet', 'aboutMainnet'];
 
 // Fills {{tokens}} in a page and adds the theme, the font link and window.PAD. Pages without a <head> are left alone.
 function applyToHtml(html, pad, ctx) {
+  const platform = (ctx && ctx.platform) || pad.name; // the site's own brand, which a built pad's page still carries
   let out = html.replace(/\{\{([A-Za-z]+)\}\}/g, (m, k) => {
     if (k === 'ogImage') return esc((ctx && ctx.origin ? ctx.origin : '') + '/banner.png');
     return TOKENS.indexOf(k) !== -1 ? esc(pad[k]) : m;
   });
   if (pad.theme.fontsUrl) out = out.replace(/<link rel="stylesheet" href="https:\/\/fonts\.googleapis\.com\/[^"]*">/, '<link rel="stylesheet" href="' + esc(pad.theme.fontsUrl) + '">');
   const css = themeCss(pad);
-  const data = JSON.stringify(publicPad(pad)).replace(/</g, '\\u003c').replace(/[\u2028\u2029]/g, c => '\\u' + c.charCodeAt(0).toString(16));
+  const data = JSON.stringify(Object.assign(publicPad(pad), { platform: platform })).replace(/</g, '\\u003c').replace(/[\u2028\u2029]/g, c => '\\u' + c.charCodeAt(0).toString(16));
   const inject = '<script>window.PAD=' + data + ';</script>' + (css ? '<style id="pad-theme">' + css + '</style>' : '');
   if (out.indexOf('</head>') !== -1) out = out.replace('</head>', inject + '</head>');
   return out;

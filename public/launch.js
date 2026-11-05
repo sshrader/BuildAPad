@@ -85,7 +85,7 @@
       if (next.step === 'waiting') { if (++waits > 10) break; await new Promise(r => setTimeout(r, 2000)); round--; continue; }
       if (next.step === 'done') { done = true; break; }
       say(next.step === 'split'
-        ? 'Step 2 of ' + total + ': approve the fee split' + (split ? ' (you keep ' + split.creatorPct + '% of creator fees, ' + window.PAD.name + ' ' + split.platformPct + '%)' : '') + '…'
+        ? 'Step 2 of ' + total + ': approve the fee split' + (split ? ' (you keep ' + split.creatorPct + '% of creator fees' + (split.ownerPct ? ', ' + window.PAD.name + ' ' + split.ownerPct + '%' : '') + ', ' + window.PAD.platform + ' ' + split.platformPct + '%)' : '') + '…'
         : 'Step 3 of ' + total + ': approve your first buy…');
       const sig = await W.signAndSend(next.transaction);
       say('Sent. Waiting for the network to confirm…');
@@ -114,11 +114,11 @@
       say('Preparing the transaction…');
       const res = await fetch('/api/launch/prepare', {
         method: 'POST', headers: { 'Content-Type': 'application/json' },
-        body: JSON.stringify({ name: staged.name, symbol: staged.symbol, art: staged.art, creator: wallet, links: links, firstBuySol: firstBuy })
+        body: JSON.stringify({ name: staged.name, symbol: staged.symbol, art: staged.art, creator: wallet, links: links, firstBuySol: firstBuy, pad: (window.PAD.extra && window.PAD.extra.slug) || undefined })
       });
       const data = await res.json().catch(() => null);
       if (!res.ok || !data || typeof data.transaction !== 'string') {
-        const why = { rate_limited: 'Too many launches. Wait a minute.', bad_name: 'That name is not allowed.', bad_symbol: 'Use 1 to 10 letters or digits for the ticker.', bad_art: 'That picture is no longer available. Make a new one.', bad_amount: 'Buy at launch must be from 0.01 to 5 SOL, or left empty.', bad_links: 'Check your links. A website needs https://, and X takes a handle, a profile link or a post link, and Telegram takes a handle like @yourcoin.', links_locked: 'Your links are locked because a launch was already started with this picture. Put the earlier links back, or draw a new one to change them.', uri_too_long: 'That name is too long.', launch_unavailable: 'Launching is not switched on for this site.', founder_only: 'This picture can only be launched by the ' + window.PAD.name + ' founder wallet.' };
+        const why = { rate_limited: 'Too many launches. Wait a minute.', bad_name: 'That name is not allowed.', bad_symbol: 'Use 1 to 10 letters or digits for the ticker.', bad_art: 'That picture is no longer available. Make a new one.', bad_amount: 'Buy at launch must be from 0.01 to 5 SOL, or left empty.', bad_links: 'Check your links. A website needs https://, and X takes a handle, a profile link or a post link, and Telegram takes a handle like @yourcoin.', links_locked: 'Your links are locked because a launch was already started with this picture. Put the earlier links back, or draw a new one to change them.', uri_too_long: 'That name is too long.', launch_unavailable: 'Launching is not switched on for this site.', founder_only: 'This picture can only be launched by the ' + window.PAD.platform + ' founder wallet.' };
         say((data && why[data.error]) || 'Could not prepare the launch. Try again.', true);
         busy = false; render();
         return;
@@ -163,6 +163,8 @@
     .then(info => {
       enabled = Boolean(info && info.enabled);
       split = info && info.split ? info.split : null;
+      const ex = window.PAD.extra;
+      if (split && ex && Number.isInteger(ex.ownerPct) && ex.ownerPct > 0) split = { creatorPct: split.creatorPct - ex.ownerPct, ownerPct: ex.ownerPct, platformPct: split.platformPct };
       render();
     })
     .catch(() => { enabled = false; });

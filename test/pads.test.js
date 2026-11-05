@@ -63,8 +63,7 @@ test('the server serves the pad: name, wording and colours on the page, stock fi
     const page = await get(s.port, '/');
     assert.equal(page.status, 200);
     assert.ok(page.body.includes('<title>BoltPad</title>'));
-    assert.ok(page.body.includes('Describe a robot. Boot up its coin.'));
-    assert.ok(page.body.includes('What robot?'));
+    assert.ok(page.body.includes('Build your own launchpad.'));
     assert.ok(page.body.includes('--accent:#2fd6a0'));
     assert.ok(page.body.includes('family=Space+Grotesk'));
     assert.ok(!page.body.includes('{{'), 'every token was filled');
@@ -73,6 +72,8 @@ test('the server serves the pad: name, wording and colours on the page, stock fi
     assert.ok(coin.body.includes('Coin · BoltPad'));
     const admin = await get(s.port, '/admin');
     assert.ok(admin.body.includes('Fees · BoltPad'));
+    const build = await get(s.port, '/build');
+    assert.ok(build.body.includes('Build a pad · BoltPad'));
     const css = await get(s.port, '/app.css');
     assert.ok(!css.body.includes('id="pad-theme"'));
   } finally { await s.close(); }
@@ -83,7 +84,6 @@ test('the hatchpad pad serves the page much as before', async () => {
   try {
     const page = await get(s.port, '/');
     assert.ok(page.body.includes('<title>HatchPad</title>'));
-    assert.ok(page.body.includes('What animal?'));
     assert.ok(!page.body.includes('id="pad-theme"')); // no colours set, so the stock stylesheet is untouched
   } finally { await s.close(); }
 });
@@ -97,8 +97,8 @@ test('a pad can replace a stock file from its own assets folder, and only by pla
   try {
     const icon = await get(s.port, '/icon.svg');
     assert.equal(icon.body, '<svg id="custom"/>');
-    const mascot = await get(s.port, '/mascot.svg');
-    assert.ok(mascot.status === 200 && !mascot.body.includes('custom'));
+    const stock = await get(s.port, '/app.css');
+    assert.ok(stock.status === 200 && !stock.body.includes('custom'));
     const trav = await get(s.port, '/..%2Fpads%2Fhatchpad.json');
     assert.notEqual(trav.status, 200);
   } finally { await s.close(); }

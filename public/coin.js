@@ -4,7 +4,7 @@
 
   // Light or dark, remembered from the main page.
   const root = document.documentElement;
-  const themeBtn = document.getElementById('theme');
+  const themeBtn = document.getElementById('theme') || document.createElement('button'); // dark only: the page has no switch
   function syncTheme() {
     const light = root.dataset.theme === 'light';
     themeBtn.setAttribute('aria-label', light ? 'Switch to dark mode' : 'Switch to light mode');
@@ -46,7 +46,7 @@
   }
 
   function render(c, cfg) {
-    document.title = c.name + ' · ' + window.PAD.name + '';
+    document.title = c.name + ' · ' + window.PAD.platform + '';
     box.textContent = '';
     const grid = add(box, 'div', undefined, 'coinpage');
 
@@ -92,7 +92,7 @@
     const t = add(acts, 'a', 'Trade this coin', 'btn go');
     t.href = '/?pool=' + encodeURIComponent(c.pool) + '#trade';
     const tw = add(acts, 'a', 'Share on X', 'btn');
-    tw.href = 'https://twitter.com/intent/tweet?text=' + encodeURIComponent(c.name + ' ($' + c.symbol + ') on ' + window.PAD.name + '' + (AnimalNet.main ? '' : ', a devnet test coin')) + '&url=' + encodeURIComponent(location.origin + '/coin/' + c.pool);
+    tw.href = 'https://twitter.com/intent/tweet?text=' + encodeURIComponent(c.name + ' ($' + c.symbol + ') on ' + window.PAD.platform + '' + (AnimalNet.main ? '' : ', a devnet test coin')) + '&url=' + encodeURIComponent(location.origin + '/coin/' + c.pool);
     tw.target = '_blank'; tw.rel = 'noopener noreferrer';
     // A Blink: a link that opens a buy for this coin in a Blink-aware viewer, with no need to visit this site.
     const blink = 'https://dial.to/?action=' + encodeURIComponent('solana-action:' + location.origin + '/api/actions/trade/' + c.pool) + AnimalNet.dialSuffix;
@@ -114,7 +114,7 @@
     startChat(box, c);
     const sp = cfg && cfg.split;
     if (sp && Number.isFinite(sp.creatorPct) && Number.isFinite(sp.platformPct)) {
-      fact('Creator fees', 'Trades on this coin pay a creator fee. ' + sp.creatorPct + '% goes to the creator and ' + sp.platformPct + '% to ' + window.PAD.name + '.');
+      fact('Creator fees', 'Trades on this coin pay a creator fee, shared on-chain between the wallets in its split (shown above).');
     }
     if (Number(c.devBuySol) > 0) fact('Creator first buy', 'The creator bought ' + Number(c.devBuySol) + ' SOL worth in the launch transaction, before anyone else could.');
     fact('Launched', when(c.createdAt));
@@ -146,7 +146,7 @@
     function draw() {
       if (!info) return;
       text.textContent = 'Creator fees waiting: ' + info.pendingSol.toFixed(6) + ' SOL' +
-        (info.splitOk ? ' · split ' + info.creatorPct + '% creator, ' + info.platformPct + '% ' + window.PAD.name + '' : ' · fee split not set yet');
+        (info.splitOk ? ' · split ' + window.feeLine(info) : ' · fee split not set yet');
       btn.hidden = false;
       btn.disabled = busy || !info.splitOk || !(info.pendingSol > 0.00001);
       // A launch that stopped before the fee split can be finished here by the creator's wallet.
@@ -171,7 +171,7 @@
         const sig = await W.signAndSend(data.transaction);
         status.textContent = 'Sent. Waiting for the network to confirm…';
         const state = await W.confirm(sig);
-        if (state === 'confirmed') { busy = false; await load(); status.textContent = 'Sent ✓ The fees were paid to the creator and ' + window.PAD.name + ' wallets.'; }
+        if (state === 'confirmed') { busy = false; await load(); status.textContent = 'Sent ✓ The fees were paid to the creator and ' + window.PAD.platform + ' wallets.'; }
         else if (state === 'failed') status.textContent = 'The payout failed on-chain. Make sure the wallet has a little SOL for the network fee, then try again.';
         else status.textContent = 'Not confirmed yet. Reload in a minute to see the result.';
       } catch (err) {

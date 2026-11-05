@@ -1,146 +1,77 @@
 # BuildAPad
 
-Describe an animal. AI draws the logo and suggests a name, ticker and description. Accept it, or reject it and try again. Then launch it as a token on the pump.fun protocol (its bonding curve, then PumpSwap), trade it, and send out the creator fees.
+Build your own Solana launchpad in a minute. Pick a name, upload a logo, choose an accent color and your cut of the creator fees. Sign once with your wallet and you get a live launchpad page at `/p/<your-name>` where anyone can launch a coin on pump.fun, and you earn from every one.
 
-**Status:** runs on pump.fun. The launch, fee split, first buy and payout have been tested end to end on devnet (from HatchPad, which shares this backend). Devnet is the default; mainnet is refused in code until `MAINNET_ENABLED=yes`. Run `devnet/11-check-pump.mjs` before real money.
+**Status:** runs on pump.fun. The launch, fee split, first buy and payout have been tested end to end on devnet. Devnet is the default; mainnet is refused in code until `MAINNET_ENABLED=yes`. Run `devnet/11-check-pump.mjs` before real money.
 
 ## How it works
 
-1. **Describe:** the page sends a short description to the server. The server asks an AI provider for the image and for the name, ticker and description, so the API key never reaches the browser. The provider is Cloudflare Workers AI (`IMAGE_PROVIDER=cloudflare`) or OpenAI (the default).
-2. **Accept or reject:** you can edit the name and ticker. Reject draws a new animal from the same description.
-3. **Add links (optional):** a creator can add their own website, X and Telegram. They are checked (websites must be https; X and Telegram take a handle or link), saved with the picture, and published in the token's metadata as `external_url`, `website`, `twitter`, `telegram` and `extensions`. They are locked once a launch is started for that picture, so a changed set is refused with a clear message and the public picture address can't be used to edit them.
-4. **Launch:** Phantom signs the transactions the server prepares one at a time. With a lookup table: (1) `create_v2` plus the launcher's optional first buy in one transaction, (2) the coin's creator fees are split between the launcher and HatchPad (pump.fun creator fee sharing). Without one: create, then split, then the first buy. The token's metadata link points back at this site, so wallets and explorers show the picture. If a step is declined or the tab closes, pressing Launch again continues from what is on-chain.
-5. **Trade and send out fees:** paste a coin address (CA) to see how full the curve is and buy. Anyone can press Send out fees on a coin page; the money goes to the wallets in the coin's fee split.
+1. **Build a pad (`/build`):** the owner picks a name, page address, tagline, logo (PNG or JPEG, resized in the browser), accent color, corner style, optional links, and their fee share. A live preview follows every choice. The owner's wallet signs a message (no cost) that names the page, the wallet and the share, and the server checks the signature before saving the pad.
+2. **Launch a coin (`/p/<slug>`):** a visitor enters a name, ticker, optional description and a picture, then Phantom signs the transactions the server prepares: `create_v2` (with an optional first buy in the same transaction when a lookup table is set), then the three-way fee split. If a step is declined or the tab closes, pressing Launch again continues from what is on-chain.
+3. **Fees, split three ways on-chain:** pump.fun's own fee sharing pays the coin's launcher, the pad owner and the platform. The platform share is fixed by the operator (`PLATFORM_SHARE_PCT`); the owner picks their share from 0 up to `50 - platform share`; the launcher keeps the rest, always at least half.
+4. **Send out fees:** anyone can press Send out fees on a coin page. The money goes to the wallets in that coin's split. The operator's `/admin` page lists the platform's share and sends it out.
 
 ## Run it
 
 ```
 npm install
-IMAGE_PROVIDER=cloudflare CLOUDFLARE_ACCOUNT_ID=... CLOUDFLARE_API_TOKEN=... node server.js
+PLATFORM_FEE_WALLET=<public address> node server.js
 ```
 
-Without a valid key and settings the page says the studio is off. `/healthz` and the startup log name the missing setting (never its value). Pasted settings are trimmed of stray spaces and quotes. Without `PLATFORM_FEE_WALLET` launching is hidden.
+`/healthz` and the startup log name any missing setting (never its value). Without `PLATFORM_FEE_WALLET` launching and building are switched off.
 
 | Variable | Purpose |
 | --- | --- |
-| `IMAGE_PROVIDER` | `cloudflare` for Workers AI. Anything else (or unset) uses OpenAI. |
-| `CLOUDFLARE_ACCOUNT_ID` | Your 32-character Cloudflare account id. |
-| `CLOUDFLARE_API_TOKEN` | A Cloudflare API token with Workers AI access. Set it in Railway, never in the repo or in chat. |
-| `OPENAI_API_KEY` | Only for the OpenAI provider. |
-| `IMAGE_MODEL` | Leave blank for the default: `@cf/black-forest-labs/flux-1-schnell` (Cloudflare, returns JPEG) or `gpt-image-1` (OpenAI, PNG). |
-| `TEXT_MODEL` | Leave blank for the default: `@cf/meta/llama-3.1-8b-instruct` or `gpt-4o-mini`. Writes the name, ticker and description. |
-| `ART_PER_IP_PER_HOUR` | Default 6 pictures per address per hour. |
-| `ART_DAILY_CAP` | Default 300 pictures a day in total. This caps your spend. |
-| `DATA_DIR` | Where the volume is mounted (for example `/data`). Pictures go in `<DATA_DIR>/art` and the launch list in `<DATA_DIR>/launches.json`. Defaults to `/data` when that folder exists, otherwise memory only. |
-| `ART_DIR` | Optional. Overrides just the pictures folder. |
-| `VERIFY_SECRET` | Optional. Secret behind the website-check codes. If unset and a volume exists, one is created in `<DATA_DIR>/verify-secret`. |
-| `LAUNCHES_FILE` | Optional. Overrides where the launch list is saved. Default: `<DATA_DIR>/launches.json` on devnet and `launches.<cluster>.json` otherwise, so devnet and mainnet lists never mix. Pointing it at a new file name is a safe way to start with an empty list. |
-| `HIDE_POOLS` | Optional. Comma-separated pool addresses to hide from the public "Recently launched" list. |
-| `LAUNCH_RPC_URL` | RPC address. Devnet defaults to the public one. Mainnet requires a dedicated paid RPC (keep it in Railway Variables). |
+| `PLATFORM_FEE_WALLET` | Public address that receives the platform's share. Required. Use a fresh wallet or a Ledger. |
+| `PLATFORM_SHARE_PCT` | The platform's share of creator fees, whole number 1 to 50. Suggested 10. It is written on-chain at launch and cannot change for that coin. |
+| `DATA_DIR` | Where the volume is mounted (for example `/data`). **Required for pads to survive a deploy**: pads are saved in `<DATA_DIR>/padstore.json`, pad logos in `<DATA_DIR>/pad-logos`, coin pictures in `<DATA_DIR>/art`, the launch list in `<DATA_DIR>/launches.json`. Defaults to `/data` when that folder exists, otherwise memory only. |
 | `LAUNCH_CLUSTER` | `devnet` (default) or `mainnet-beta`. |
-| `PAD` | Which `pads/<name>.json` look and wording to use. Default `buildapad`. |
-| `PLATFORM_FEE_WALLET` | Public address that receives HatchPad's share of each coin's creator fees. Required for launching. Use a fresh wallet or a Ledger. |
-| `PLATFORM_SHARE_PCT` | HatchPad's share of the creator fees, a whole number from 1 to 50. Default 20 (the launcher keeps 80). It is written on-chain at launch and cannot be changed for that coin afterwards. |
-| `LAUNCH_LOOKUP_TABLE` | Address of the frozen lookup table made by `devnet/12-make-lookup-table.mjs`. With it, creating the coin and the creator's first buy are one transaction, so nobody can buy first. Without it (or if the table is missing or not frozen) launches use separate steps. |
-| `PRIORITY_FEE_MICROLAMPORTS` | Priority fee per compute unit added to transactions. Default 50000 on mainnet, 0 on devnet. |
-| `MAINNET_ENABLED` | Must be `yes` for `LAUNCH_CLUSTER=mainnet-beta`. Without it the server refuses to start. |
-| `FOUNDER_WALLET` | Public address of the wallet allowed to launch the founder coin (the HatchPad logo, `founder/logo.png`, no AI). Open `/?founder=1` to stage it. Nobody else can launch it. Optional `FOUNDER_NAME` (default HatchPad), `FOUNDER_SYMBOL` (HATCH), `FOUNDER_DESCRIPTION`. |
+| `MAINNET_ENABLED` | Must be `yes` for `mainnet-beta`. Without it the server refuses to start. |
+| `LAUNCH_RPC_URL` | RPC address. Devnet defaults to the public one. Mainnet requires a dedicated paid RPC. |
+| `LAUNCH_LOOKUP_TABLE` | Frozen lookup table made by `devnet/12-make-lookup-table.mjs`. With it, creating the coin and the creator's first buy are one transaction, so nobody can buy first. |
+| `PRIORITY_FEE_MICROLAMPORTS` | Priority fee per compute unit. Default 50000 on mainnet, 0 on devnet. |
+| `PAD` | Which `pads/<name>.json` sets the home page brand. Default `buildapad`. |
 | `PUBLIC_URL` | This site's address, if it can't be worked out from the request. |
+| `LAUNCHES_FILE`, `HIDE_POOLS` | Optional. Move the launch list; hide pools from public lists. |
+| `ART_DIR`, `VERIFY_SECRET` | Optional. Coin picture folder; secret for website-check codes (created on the volume if unset). |
+| `IMAGE_PROVIDER`, `CLOUDFLARE_ACCOUNT_ID`, `CLOUDFLARE_API_TOKEN`, `OPENAI_API_KEY`, `IMAGE_MODEL`, `TEXT_MODEL`, `ART_PER_IP_PER_HOUR`, `ART_DAILY_CAP` | Optional AI picture and chat settings, used only where a pad offers them. |
+| `FOUNDER_WALLET` | Optional. Only this wallet can stage the founder coin. |
 
-## Pads: make your own launchpad look
+## Pad rules
 
-One copy of this code can run any number of launchpads. Each one is a settings file in `pads/`, and the `PAD` setting says which file a deployment uses (default `buildapad`). The backend (launching, fee split, payouts, admin) is the same for every pad.
+- Names and page addresses are checked against a blocked list of well-known people and brands, and a reserved list (`build`, `admin`, `api`, ...). Pages are 3 to 30 letters, numbers or dashes.
+- Creating a pad needs a wallet signature (valid for 10 minutes). Limits: 3 pads per wallet, 5 creations per connection per hour.
+- Logos are checked by their first bytes (PNG or JPEG, up to 400 KB). SVG is refused.
+- Colors are hex only, fonts Google Fonts only, and all text is escaped, so a pad cannot add markup or script.
+- Pads cannot be edited after creation yet.
 
-To make a new one:
-1. Copy `pads/robots.json` to `pads/<your-id>.json` and change `"id"` to match the file name (lowercase letters, digits, dashes).
-2. Edit the file (see below).
-3. Deploy it as its own Railway service with `PAD=<your-id>`, its own volume, domain and `PLATFORM_FEE_WALLET`.
+`pads/*.json` are operator brand files for the home page (`PAD`). `pads/buildapad.json` is the default; `hatchpad.json` and `robots.json` are older samples.
 
-What a pad file can set (anything left out falls back to HatchPad's wording):
+## Guardrails and limits
 
-| Setting | What it does |
-| --- | --- |
-| `name` | The brand name shown on every page and in messages. |
-| `subject`, `subjects` | What people describe ("animal", "robot"), singular and plural. Used in prompts and messages. |
-| `tagline`, `description`, `heroTitle`, `heroLede` | Page title text, search/share description and the top of the home page. |
-| `promptLabel`, `promptPlaceholder`, `emptyText` | The text around the description box. |
-| `aboutDevnet`, `aboutMainnet` | The sentence after the name in the About section. |
-| `persona`, `imageStyle` | How the AI describes its mascot in chat, and the start of the picture prompt. The safety wording (an original character, nothing existing) always stays. |
-| `ideas` | `moods`, `things`, `extras`: word lists for the example buttons. |
-| `theme` | `dark` and `light` colours (hex only: ground, paper, soft, text, muted, edge, line, accent, on-accent, pop, ok, bad), `fontDisplay`, `fontBody` and a Google Fonts `fontsUrl`. |
-| `fees` | `wallet` and `platformSharePct` (1 to 50) as defaults. The `PLATFORM_FEE_WALLET` and `PLATFORM_SHARE_PCT` settings win when set. |
-| `founderName`, `founderSymbol`, `founderDescription` | Text for the founder coin. |
-
-Pictures: put files named `icon.svg`, `mascot.svg` or `banner.png` in `pads/<id>/assets/` to replace the stock ones, and `founder-logo.png` there for the founder coin. The stock `founder/logo.png` is HatchPad's own logo and is only used by the `hatchpad` pad.
-
-A mistake in a pad file stops the server at start with a message that names the file and the setting, for example `theme.dark.accent must be a hex colour`. Pad files cannot add markup or script: text is escaped, colours must be hex, and fonts must come from Google Fonts.
-
-## Guardrails
-
-- Prompts are cleaned of control characters, capped at 120 characters, and checked against a short list of well-known characters, brands and people. The list is basic, not complete.
-- The image prompt asks for an original character, and the name step is told to avoid existing brands and tokens.
-- Generation is rate limited per address and per day, and every failure gives a generic error.
-- Pictures are saved on the volume at `/data/art` (`<id>.png` or `<id>.jpg`, plus `<id>.json`). Both PNG and JPEG are accepted and checked by their first bytes. A picture used by a launch is kept for good. Animals that were generated but never launched are deleted after a day. With no volume, pictures live in memory only and are lost on restart, and the server says so at startup.
-- The home page lists recent launches (`GET /api/launches`). Each is checked on-chain before it shows, and entries that never got sent are dropped after a day. Moderation is basic: a blocked list of brand and person names at launch time, and `HIDE_POOLS` to remove anything else by hand. There is no profanity filter yet.
-- On Railway, add a volume to the service and mount it at `/data`. If the startup log says the art folder is not usable, the volume is probably not writable by the app's user.
-- This is fine for devnet. For mainnet, move pictures to content-addressed storage such as IPFS, so a token's picture does not depend on this server.
+- Coin names and descriptions are cleaned and checked against a basic blocked list. It is not complete. `HIDE_POOLS` removes anything else by hand.
+- The three-way split is enforced for coins launched through the site's own flow. Someone who builds their own transactions can launch without it, so coin pages and `/admin` count only coins whose split is in place (`splitOk`).
+- Not built yet: selling from the page, payouts after a coin moves to PumpSwap, pad editing, a per-owner fee dashboard, IPFS storage, a security review for mainnet.
 
 ## Scripts
 
-`devnet/` holds command-line helpers: throwaway keys, a payer wallet, a sweep script, and `11-check-pump.mjs`, which asks the network to simulate HatchPad's pump.fun transactions without spending anything. See `devnet/README.md`.
+`devnet/` holds command-line helpers (throwaway keys, payer wallet, sweep script, `11-check-pump.mjs` which simulates the pump.fun transactions without spending anything, `12-make-lookup-table.mjs`). See `devnet/README.md`.
 
 ## How pump.fun is used
 
-`pump.js` builds instructions straight from pump.fun's published IDL (`idl/pump.json`, `idl/pump_fees.json`, copied from github.com/pump-fun/pump-public-docs): `create_v2`, `create_fee_sharing_config`, `update_fee_shares_v2`, `buy_exact_quote_in_v3`, `sell_v3`, `sweep_creator_fee` and `distribute_creator_fees_v2`. There is no SDK dependency beyond `@solana/web3.js`. The buy minimum is computed from the curve with a deliberately generous fee guess, because the exact fee tier is read on-chain.
+`pump.js` builds instructions straight from pump.fun's published IDL (`idl/pump.json`, `idl/pump_fees.json`): `create_v2`, `create_fee_sharing_config`, `update_fee_shares_v2`, `buy_exact_quote_in_v3`, `sell_v3`, `sweep_creator_fee` and `distribute_creator_fees_v2`. The only dependency is `@solana/web3.js`. Creator fees stay on the curve, so a payout is sweep then distribute in one transaction. Fees earned before the split is set go entirely to the launcher.
 
-Creator fees are kept on the curve by the v3 trades, so a payout is two instructions in one transaction: sweep, then distribute. It works while the coin is on the bonding curve. After pump.fun moves it to PumpSwap, payouts need the PumpSwap sweep as well; that is not built yet, and the coin page says so.
+## Other pages
 
-The platform split is only enforced for coins launched through this site's three steps. Someone who builds their own transactions can launch without the split, so the coin page and `/admin` count only coins whose fee split is in place (`splitOk`).
-
-## Not built yet
-
-- IPFS storage for pictures (they are on the volume for now).
-- Selling from the page, and payouts after a coin moves to PumpSwap.
-- Anything needed for mainnet: a security review, self-hosting the wallet library.
-
-## Coin pages
-
-Each launch has a page at `/coin/<pool address>` with its details, a mood badge that follows how full the curve is (sleepy, awake, excited, ready, graduated) and a chat with the mascot. Chat uses the same text model as naming. It is limited to 20 messages per visitor per hour and 1000 a day in total (`chatPerIpPerHour` and `chatDailyCap` in `art.js`). The mascot is told not to give financial advice, replies are stripped of links, and the character is always read from the coin, never from the request.
-
-## Share links (Solana Actions / Blinks)
-
-`GET /actions.json` and `/api/actions/trade/<pool>` follow the Solana Actions spec. A wallet or Blink viewer reads the coin, shows buttons for 0.05, 0.1 and 0.5 SOL plus a custom amount, and POSTs the buyer's wallet to get an unsigned buy that the wallet signs. The coin page has a "Copy buy link" button that wraps the action in a dial.to link on devnet. Responses carry the devnet chain id and open CORS headers. Showing a coin page link as an interactive card inside X needs the domain registered with a Blinks client, which is not done.
-
-## Buy at launch
-
-The launch panel has an optional first buy (0.01 to 5 SOL). Create plus buy is too big for one normal transaction, so with `LAUNCH_LOOKUP_TABLE` set they go in one version 0 transaction that uses a shared, frozen address lookup table, and nobody can buy first (the approach Sparkpad uses, with one shared table instead of one per wallet). Without it the buy is the last step, a separate transaction a very fast bot could beat. The coin page shows how much the creator bought.
-
-## Website verification
-
-A coin whose creator added a website shows a "Verify it" box with a code that belongs to that coin. The creator saves the code in `/.well-known/hatchpad-verify.txt` on their site, or anywhere on the page they linked. `POST /api/coin/verify` then fetches those two addresses and, if it finds the code, saves that the site is verified. The fetch is locked down: https on port 443 only, names only (no IP addresses), public addresses only (checked at connect time), no redirects, 6 second timeout, 16 KB limit. Checks are limited to 10 per visitor per hour and one per coin every 20 seconds. This proves control of the website only. It does not verify X or Telegram.
-
-## Platform fees (/admin)
-
-`/admin` lists every HatchPad coin whose fee split is in place with the platform's share of its waiting creator fees, and a button to send them out. Connect the platform fee wallet in Phantom. The server builds an unsigned sweep-and-distribute transaction (`/api/admin/claim`); the wallet signs and pays the network fee. The money goes to the coin's two shareholders (the launcher and HatchPad), whoever sends it, so the page and server hold no keys.
+- `/coin/<pool>`: coin details, trading, fee status, Send out fees (and Finish setup for the creator if the split step was skipped), website verification and share/Blink links.
+- `/admin`: connect the platform wallet to see and send out its share.
 
 ## Going live on mainnet
 
-Real money. Read the go-live list with your lawyer and security reviewer first. The code defaults to devnet and refuses mainnet unless every switch below is set.
+Real money. Get a legal and security review first.
 
-1. Make a NEW platform fee wallet in Phantom (a fresh account) or on a Ledger / Squads multisig. Copy only its public address. Its private key must never be on a server or in this repo.
-2. Check the transactions without spending anything (from `devnet/`, after `npm install`):
-   ```
-   CLUSTER=mainnet-beta MAINNET_OK=yes RPC_URL=<mainnet rpc> node 11-check-pump.mjs <your wallet> <mint of any live pump.fun coin>
-   ```
-   Both lines should say PASS. The fee-split step can only be proven by a real launch, so do one on devnet first if pump.fun's program is there, or a first mainnet launch with a small first buy.
-3. Make the shared lookup table once (about 0.01 SOL of rent, from the payer file):
-   ```
-   cd devnet
-   $env:CLUSTER="mainnet-beta"; $env:MAINNET_OK="yes"; $env:RPC_URL="<mainnet rpc>"; $env:PAYER_KEYPAIR="<path>"
-   node 12-make-lookup-table.mjs <platform fee wallet>
-   ```
-   It prints an address and freezes the table so nobody can change it. Use it as `LAUNCH_LOOKUP_TABLE`.
-4. In Railway set `LAUNCH_CLUSTER=mainnet-beta`, `MAINNET_ENABLED=yes`, `LAUNCH_RPC_URL=<mainnet rpc>` `PLATFORM_FEE_WALLET=<public address>` and `LAUNCH_LOOKUP_TABLE=<address>`.
-5. Open `/admin` with the platform fee wallet to send out fees.
-
-On mainnet a buy whose quote comes out as zero is refused, and the pages show real-money wording and mainnet explorer links.
+1. Make a NEW platform fee wallet (fresh Phantom account, Ledger or multisig). Only its public address goes on the server.
+2. Simulate: `CLUSTER=mainnet-beta MAINNET_OK=yes RPC_URL=<rpc> node 11-check-pump.mjs <wallet> <mint of a live pump.fun coin>` from `devnet/`.
+3. Make the lookup table once with `12-make-lookup-table.mjs <platform fee wallet>` and use its address as `LAUNCH_LOOKUP_TABLE`.
+4. On Railway set `LAUNCH_CLUSTER=mainnet-beta`, `MAINNET_ENABLED=yes`, `LAUNCH_RPC_URL`, `PLATFORM_FEE_WALLET`, `PLATFORM_SHARE_PCT`, `LAUNCH_LOOKUP_TABLE`, and keep the volume mounted.
+5. Build one pad and launch one small coin first, then check `/admin`.

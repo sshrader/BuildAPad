@@ -263,3 +263,28 @@ test('the pad leaderboard ranks pads by confirmed coins, then SOL raised, and ig
   assert.equal(b.rows[0].top.length, 2);
   assert.equal(b.totalCoins, 3);
 });
+
+test('the official coin: found by its picture, reported by /api/founder only once it exists on-chain, and /admin/launch is served', async () => {
+  let t = 1000000;
+  const onChain = new Set();
+  const l = createLaunches({ inspect: chain(onChain), now: () => t, logger: quiet, listTtlMs: 0 });
+  const ART = 'ab12cd34ef56ab12';
+  assert.equal(l.findByArt(ART), null);
+  l.record(entry(7, { art: ART }));
+  assert.equal(l.findByArt(ART).symbol, 'AN7');
+  const founder = { id: ART, ext: 'png', wallet: CREATOR, name: 'BuildAPad', ticker: 'BUILD', description: 'The official coin.' };
+  const { art } = { art: createArt({ logger: quiet }) };
+  const srv = createApp({ art, launches: l, founder });
+  await new Promise(r => srv.listen(0, '127.0.0.1', r));
+  const base = 'http://127.0.0.1:' + srv.address().port;
+  try {
+    const before = await (await fetch(base + '/api/founder')).json();
+    assert.equal(before.wallet, CREATOR);
+    assert.equal(before.launched, null);                      // recorded, but not on-chain yet
+    const page = await fetch(base + '/admin/launch');
+    assert.equal(page.status, 200);
+    const html = await page.text();
+    assert.ok(html.includes('Launch the official coin') && !html.includes('{{'));
+    assert.ok(html.includes('noindex'));
+  } finally { srv.closeAllConnections(); await new Promise(r => srv.close(r)); }
+});

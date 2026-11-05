@@ -302,3 +302,12 @@ label.check, .links-body label.check, .fields label.check { display: flex; flex-
 .aipanel { display: grid; gap: 10px; padding: 16px; border: 1px dashed color-mix(in srgb, var(--accent) 45%, var(--line)); border-radius: var(--r); background: color-mix(in srgb, var(--accent) 5%, var(--paper)); }
 .aipanel .row { flex-wrap: nowrap; }
 .aipanel .row input { flex: 1; }
+
+.official { display: flex; flex-wrap: wrap; align-items: center; gap: 16px 22px; padding: 20px 22px; border: 1px solid color-mix(in srgb, var(--accent) 45%, var(--line)); border-radius: calc(var(--r) + 6px); background: linear-gradient(90deg, color-mix(in srgb, var(--accent) 9%, var(--paper)), var(--paper) 70%); }
+.official img { width: 72px; height: 72px; border-radius: var(--r); object-fit: cover; flex: none; }
+.of-text { display: grid; gap: 6px; flex: 1; min-width: 220px; }
+.of-text h2 { font-size: 1.4rem; }
+.of-text .cavalue { overflow-wrap: anywhere; }
+.facts { display: grid; grid-template-columns: max-content minmax(0, 1fr); gap: 8px 16px; margin: 0; font-size: 14px; }
+.facts dt { color: var(--muted); }
+.facts dd { margin: 0; overflow-wrap: anywhere; }

@@ -87,6 +87,10 @@ For Cloudflare Workers AI set: `IMAGE_PROVIDER=cloudflare`, `CLOUDFLARE_ACCOUNT_
 - `/coin/<pool>`: coin details, trading, fee status, Send out fees (and Finish setup for the creator if the split step was skipped), website verification and share/Blink links.
 - `/admin`: connect the platform wallet to see and send out its share.
 
+## The official coin (`/admin/launch`)
+
+An admin-only page launches the site's own coin (default name BuildAPad, ticker BUILD) with the logo in `pads/buildapad/assets/founder-logo.png`. Connect the admin wallet, add links and an optional first buy, and launch. The admin wallet is `FOUNDER_WALLET`, or `PLATFORM_FEE_WALLET` if that is not set. Only that wallet can launch the coin (checked on the server, and the wallet has to sign it). Once it is on-chain, the home page shows an "official coin" box with its address. Optional text settings: `FOUNDER_NAME`, `FOUNDER_SYMBOL`, `FOUNDER_DESCRIPTION`. The fee split is the usual one: the platform share to `PLATFORM_FEE_WALLET`, the rest to the launcher.
+
 ## Going live on mainnet
 
 Real money. Get a legal and security review first.

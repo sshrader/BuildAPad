@@ -194,7 +194,10 @@ function createLaunches(opts) {
     return { rows: rows.slice(0, limit || 10), totalCoins: rows.reduce((n, r) => n + r.coins, 0), totalRaisedSol: Math.round(rows.reduce((n, r) => n + r.raisedSol, 0) * 1000) / 1000 };
   }
 
-  return { record, list, detail, setSiteVerified, padOf, board, size: () => entries.length };
+  // The launch that used a given picture (the official coin), or null.
+  const findByArt = id => { const e = id ? entries.find(x => x.art === id) : null; return e ? { pool: e.pool, mint: e.mint, name: e.name, symbol: e.symbol } : null; };
+
+  return { record, list, detail, setSiteVerified, padOf, board, findByArt, size: () => entries.length };
 }
 
 module.exports = { createLaunches };

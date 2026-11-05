@@ -90,6 +90,18 @@ function createApp(opts) {
     if (cur.n >= padAiCaps[kind]) return false;
     cur.n++; return true;
   };
+  // Has the official coin been launched? Once it has, that is remembered. Until then the chain is asked at most every 20 seconds.
+  let founderDone = null, founderAsked = 0;
+  async function founderLaunched() {
+    if (founderDone) return founderDone;
+    if (!founder || !launches || Date.now() - founderAsked < 20000) return null;
+    founderAsked = Date.now();
+    const e = launches.findByArt(founder.id);
+    if (!e) return null;
+    const d = await launches.detail(e.pool);
+    if (d.status === 200) founderDone = { pool: e.pool, mint: e.mint, name: e.name, symbol: e.symbol };
+    return founderDone;
+  }
   const uploadAllowed = ip => {
     const t = Date.now();
     const recent = (uploadHits.get(ip) || []).filter(x => t - x < 3600000);
@@ -247,6 +259,7 @@ function createApp(opts) {
       return;
     }
     if (pathname === '/admin') pathname = '/admin.html';
+    if (pathname === '/admin/launch') pathname = '/admin-launch.html';
 
     // Chat with a coin's mascot. The character is looked up from the coin itself, never taken from the request.
     if (req.method === 'POST' && pathname === '/api/coin/chat') {
@@ -441,9 +454,14 @@ function createApp(opts) {
 
     // Whether the animal studio is switched on, so the page knows whether to offer it.
     if (pathname === '/api/founder' && (req.method === 'GET' || req.method === 'HEAD')) {
-      if (!founder) return send(res, 404, JSON.stringify({ error: 'not_found' }), Object.assign({}, JSON_TYPE, { 'Cache-Control': 'no-store' }));
+      const noStore = Object.assign({}, JSON_TYPE, { 'Cache-Control': 'no-store' });
+      if (!founder) return send(res, 404, JSON.stringify({ error: 'not_found' }), noStore);
       if (founder.buf && !art.record(founder.id)) art.seed(founder.buf, founder); // unlaunched pictures are pruned after a day
-      return send(res, 200, JSON.stringify({ id: founder.id, imageUrl: '/art/' + founder.id + '.' + (founder.ext || 'png'), name: founder.name, ticker: founder.ticker, description: founder.description }), Object.assign({}, JSON_TYPE, { 'Cache-Control': 'no-store' }));
+      founderLaunched().then(launched => send(res, 200, req.method === 'HEAD' ? '' : JSON.stringify({
+        id: founder.id, imageUrl: '/art/' + founder.id + '.' + (founder.ext || 'png'), name: founder.name, ticker: founder.ticker, description: founder.description,
+        wallet: founder.wallet, launched: launched
+      }), noStore)).catch(() => send(res, 500, JSON.stringify({ error: 'server_error' }), noStore));
+      return;
     }
     if (pathname === '/api/art/config') {
       return send(res, 200, JSON.stringify(art.info()), Object.assign({}, JSON_TYPE, { 'Cache-Control': 'no-store' }));
@@ -558,7 +576,8 @@ if (require.main === module) {
   }
   // The founder coin: a ready-made picture (founder/logo.png) that only FOUNDER_WALLET can launch.
   let founder = null;
-  const founderWallet = env('FOUNDER_WALLET');
+  // The admin wallet that may launch the official coin: FOUNDER_WALLET, or the platform fee wallet if that is not set.
+  const founderWallet = env('FOUNDER_WALLET') || env('PLATFORM_FEE_WALLET');
   const padLogo = path.join(pad.assetsDir, 'founder-logo.png'); // a pad can bring its own founder picture
   // The stock founder/logo.png is HatchPad's own logo, so only the hatchpad pad may use it.
   const founderFile = fs.existsSync(padLogo) ? padLogo : (pad.id === 'hatchpad' ? path.join(__dirname, 'founder', 'logo.png') : '');

@@ -73,6 +73,17 @@
     li.appendChild(rank); li.appendChild(a); li.appendChild(nums); li.appendChild(top);
     return li;
   }
+  // The official coin, once the admin has launched it.
+  fetch('/api/founder', { headers: { Accept: 'application/json' } })
+    .then(r => (r.ok ? r.json() : null))
+    .then(f => {
+      if (!f || !f.launched) return;
+      $('of-img').src = f.imageUrl; $('of-name').textContent = f.launched.name; $('of-sym').textContent = '$' + f.launched.symbol;
+      $('of-ca').textContent = f.launched.mint; $('of-open').setAttribute('href', '/coin/' + encodeURIComponent(f.launched.pool));
+      $('official').hidden = false;
+    })
+    .catch(() => { /* no official coin to show */ });
+
   fetch('/api/leaderboard', { headers: { Accept: 'application/json' } })
     .then(r => (r.ok ? r.json() : null))
     .then(j => {

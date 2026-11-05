@@ -167,5 +167,22 @@
     });
   }
 
+  // The mascot's report on this pad's coins. Shows nothing until the pad has launched a coin, or if the owner turned the mascot off.
+  if (ex.mascotChat !== false) {
+    fetch('/api/pads/' + encodeURIComponent(ex.slug) + '/report', { headers: { Accept: 'application/json' } })
+      .then(r => (r.ok ? r.json() : null))
+      .then(b => {
+        const f = b && b.facts;
+        if (!f) return;
+        $('padreport-h').textContent = (b.mascot || PAD.name || 'The mascot') + "'s report on " + (PAD.name || 'this launchpad');
+        $('padreport-text').textContent = b.report || '';
+        $('padreport-text').hidden = !b.report;
+        $('padreport-note').hidden = !b.report;
+        $('padreport-facts').textContent = [f.coinsLaunched + (f.coinsLaunched === 1 ? ' coin' : ' coins') + ' launched', f.totalRaisedSol + ' SOL raised in total', f.graduated + ' graduated', f.launchedLast24h + ' new in the last day'].join(' · ');
+        $('padreport').hidden = false;
+      })
+      .catch(() => { /* no report */ });
+  }
+
   paint();
 })();

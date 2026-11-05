@@ -451,6 +451,42 @@ function createApp(opts) {
         .catch(() => send(res, 500, JSON.stringify({ error: 'server_error' }), Object.assign({}, JSON_TYPE, { 'Cache-Control': 'no-store' })));
       return;
     }
+    // The mascot's report on a pad's coins, built from the launch list the server already keeps. Cached like a coin's report.
+    const prm = /^\/api\/pads\/([a-z0-9-]{2,30})\/report$/.exec(pathname);
+    if (req.method === 'GET' && prm) {
+      const noStore = Object.assign({}, JSON_TYPE, { 'Cache-Control': 'no-store' });
+      const slug = prm[1];
+      const set = padStore ? padStore.settings(slug) : null;
+      const pad = set ? padStore.get(slug) : null;
+      if (!set || !pad || !launches) return send(res, 404, JSON.stringify({ error: 'not_found' }), noStore);
+      if (!set.ai.chat) return send(res, 403, JSON.stringify({ error: 'ai_off' }), noStore);
+      (async () => {
+        const hit = reportCache.get('pad:' + slug);
+        if (hit && Date.now() - hit.at < 300000) return send(res, 200, JSON.stringify(hit.value), noStore);
+        const items = await launches.list(slug);
+        if (!items.length) return send(res, 200, JSON.stringify({ report: '', mascot: set.ai.mascotName || '', facts: null }), noStore);
+        const by = items.slice().sort((a, b) => (b.raisedSol || 0) - (a.raisedSol || 0));
+        const newest = items.slice().sort((a, b) => b.createdAt - a.createdAt)[0];
+        const facts = {
+          coinsLaunched: items.length,
+          totalRaisedSol: Number(items.reduce((n, i) => n + (i.raisedSol || 0), 0).toFixed(3)),
+          graduated: items.filter(i => i.migrated).length,
+          launchedLast24h: items.filter(i => Date.now() - i.createdAt < 86400000).length,
+          biggestCoin: by[0].name + ' ($' + by[0].symbol + ') with ' + Number((by[0].raisedSol || 0).toFixed(3)) + ' SOL',
+          newestCoin: newest.name + ' ($' + newest.symbol + ')'
+        };
+        const value = { report: '', mascot: set.ai.mascotName || '', facts: facts, at: Date.now() };
+        if (art.info().enabled && padAiTake(slug, 'chat')) {
+          const r = await art.report(facts, { kind: 'pad', name: pad.name, mascot: { name: value.mascot, persona: set.ai.mascotPersona } }).catch(() => null);
+          if (r && r.status === 200) value.report = r.body.report;
+        }
+        reportCache.set('pad:' + slug, { at: Date.now(), value });
+        if (reportCache.size > 500) reportCache.delete(reportCache.keys().next().value);
+        return send(res, 200, JSON.stringify(value), noStore);
+      })().catch(() => send(res, 500, JSON.stringify({ error: 'server_error' }), noStore));
+      return;
+    }
+
     const pm = /^\/api\/pads\/([a-z0-9-]{2,30})$/.exec(pathname);
     if (pm) {
       const rec = padStore ? padStore.get(pm[1]) : null;

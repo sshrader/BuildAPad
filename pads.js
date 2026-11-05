@@ -1,6 +1,6 @@
 'use strict';
 // A "pad" is one launchpad's look and wording, kept in a settings file: pads/<id>.json.
-// The server reads it once at start (PAD=<id>, default "hatchpad") and applies it to the pages it serves.
+// The server reads it once at start (PAD=<id>, default "buildapad") and applies it to the pages it serves.
 // Nothing in a pad file can add script or markup: text is escaped, colours must be hex, and fonts must come from
 // Google Fonts. A mistake in a file stops the server at start with a message saying what to fix.
 const fs = require('fs');
@@ -107,8 +107,8 @@ function normalize(raw, file) {
 }
 
 function load(id, dir) {
-  const name = id || 'hatchpad';
-  if (!ID_RE.test(name)) throw new Error('PAD must be a pad name such as "hatchpad" (letters, digits, dashes).');
+  const name = id || 'buildapad';
+  if (!ID_RE.test(name)) throw new Error('PAD must be a pad name such as "buildapad" (letters, digits, dashes).');
   const base = dir || PADS_DIR;
   const file = path.join(base, name + '.json');
   let rawText;

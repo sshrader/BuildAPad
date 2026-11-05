@@ -1,8 +1,8 @@
-# HatchPad
+# BuildAPad
 
 Describe an animal. AI draws the logo and suggests a name, ticker and description. Accept it, or reject it and try again. Then launch it as a token on the pump.fun protocol (its bonding curve, then PumpSwap), trade it, and send out the creator fees.
 
-**Status:** being moved from Meteora to pump.fun. Devnet by default; mainnet is refused in code until `MAINNET_ENABLED=yes`. The pump.fun transactions are built from pump.fun's published IDL and have been tested only against a simulated chain, so run `devnet/11-check-pump.mjs` and a devnet launch before real money.
+**Status:** runs on pump.fun. The launch, fee split, first buy and payout have been tested end to end on devnet (from HatchPad, which shares this backend). Devnet is the default; mainnet is refused in code until `MAINNET_ENABLED=yes`. Run `devnet/11-check-pump.mjs` before real money.
 
 ## How it works
 
@@ -38,7 +38,7 @@ Without a valid key and settings the page says the studio is off. `/healthz` and
 | `HIDE_POOLS` | Optional. Comma-separated pool addresses to hide from the public "Recently launched" list. |
 | `LAUNCH_RPC_URL` | RPC address. Devnet defaults to the public one. Mainnet requires a dedicated paid RPC (keep it in Railway Variables). |
 | `LAUNCH_CLUSTER` | `devnet` (default) or `mainnet-beta`. |
-| `PAD` | Which `pads/<name>.json` look and wording to use. Default `hatchpad`. |
+| `PAD` | Which `pads/<name>.json` look and wording to use. Default `buildapad`. |
 | `PLATFORM_FEE_WALLET` | Public address that receives HatchPad's share of each coin's creator fees. Required for launching. Use a fresh wallet or a Ledger. |
 | `PLATFORM_SHARE_PCT` | HatchPad's share of the creator fees, a whole number from 1 to 50. Default 20 (the launcher keeps 80). It is written on-chain at launch and cannot be changed for that coin afterwards. |
 | `LAUNCH_LOOKUP_TABLE` | Address of the frozen lookup table made by `devnet/12-make-lookup-table.mjs`. With it, creating the coin and the creator's first buy are one transaction, so nobody can buy first. Without it (or if the table is missing or not frozen) launches use separate steps. |
@@ -49,7 +49,7 @@ Without a valid key and settings the page says the studio is off. `/healthz` and
 
 ## Pads: make your own launchpad look
 
-One copy of this code can run any number of launchpads. Each one is a settings file in `pads/`, and the `PAD` setting says which file a deployment uses (default `hatchpad`). The backend (launching, fee split, payouts, admin) is the same for every pad.
+One copy of this code can run any number of launchpads. Each one is a settings file in `pads/`, and the `PAD` setting says which file a deployment uses (default `buildapad`). The backend (launching, fee split, payouts, admin) is the same for every pad.
 
 To make a new one:
 1. Copy `pads/robots.json` to `pads/<your-id>.json` and change `"id"` to match the file name (lowercase letters, digits, dashes).

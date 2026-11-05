@@ -73,7 +73,7 @@ function createApp(opts) {
   const launches = opts.launches || null;
   const launcher = opts.launcher || null;
   const founder = opts.founder || null; // { id, wallet, name, ticker, description }
-  const pad = opts.pad || pads.load('hatchpad');
+  const pad = opts.pad || pads.load('buildapad');
   const actions = createActions({ launches, launcher, cluster: launcher && launcher.info ? launcher.info().cluster : 'devnet' });
   const verifier = opts.verifier || createVerifier({});
   // Website checks fetch other people's sites, so they are limited per visitor and per coin.
@@ -354,7 +354,7 @@ if (require.main === module) {
   // Anything else uses OpenAI (needs OPENAI_API_KEY). IMAGE_MODEL and TEXT_MODEL override the defaults.
   // Settings pasted into a host's form often carry stray spaces, line breaks or quotes; strip them.
   const cloudflare = env('IMAGE_PROVIDER').toLowerCase() === 'cloudflare';
-  const pad = pads.load(env('PAD') || 'hatchpad');
+  const pad = pads.load(env('PAD') || 'buildapad');
   const art = createArt({
     subject: pad.subject, persona: pad.persona, imageStyle: pad.imageStyle,
     dir: artDir,

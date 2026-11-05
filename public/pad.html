@@ -19,7 +19,7 @@
 <main class="wrap">
   <header class="top">
     <a class="brand" href="" id="brand"><img id="pad-logo" alt="" width="30" height="30" hidden>{{name}}</a>
-    <nav class="nav" aria-label="Sections"><a href="#start">Launch a coin</a><a href="#recent">Recent coins</a><a href="#trade">Trade</a><a href="#about">Fees</a></nav>
+    <nav class="nav" aria-label="Sections"><a href="#recent">Coins</a><a href="#start">Launch a coin</a><a href="#trade">Trade</a><a href="#about">Fees</a></nav>
     <div class="row">
       <span class="chip-net" data-net-only="devnet" title="Devnet: test coins only, no real money">Devnet</span>
       <span class="chip-net live" data-net-only="mainnet-beta" hidden title="Live: real SOL">Live</span>
@@ -31,11 +31,22 @@
     <h1 id="h1">Launch your coin on {{name}}.</h1>
     <p class="lede">{{tagline}}</p>
     <div class="row"><span class="badge" id="b-private" hidden>Private launchpad</span><span class="badge" id="b-buy" hidden></span><a class="btn" id="edit-pad" href="/build" hidden>Edit this pad</a></div>
+    <div class="row"><a class="btn go" href="#start">Launch a coin</a><a class="btn" href="#recent">See the coins <span class="hint" id="coin-count"></span></a></div>
   </section>
 
   <section class="stack" id="padinfo" hidden>
     <img class="padbanner" id="padbanner" alt="" hidden>
     <p class="padabout" id="padabout" hidden></p>
+  </section>
+
+  <section class="panel" id="recent" aria-labelledby="recent-h">
+    <div class="head"><h2 id="recent-h">Recent coins on {{name}}</h2></div>
+    <div class="curvebox" id="curvebox" hidden>
+      <svg id="curve" viewBox="0 0 640 280" role="img" aria-labelledby="curve-t"><title id="curve-t">Recent coins placed along the bonding curve by how much they have raised</title></svg>
+      <p class="hint">Each coin sits where its raised SOL puts it. Further right is closer to full. Select one to open it.</p>
+    </div>
+    <div class="feed" id="feed" aria-live="polite"></div>
+    <p class="hint" id="feed-note">Loading the latest coins…</p>
   </section>
 
   <section class="panel" id="start" aria-labelledby="start-h">
@@ -106,15 +117,6 @@
     <p class="hint" id="padreport-note" hidden>Written by an AI mascot from live numbers. Not advice.</p>
   </section>
 
-  <section class="panel" id="recent" aria-labelledby="recent-h">
-    <div class="head"><h2 id="recent-h">Recent coins on {{name}}</h2></div>
-    <div class="curvebox" id="curvebox" hidden>
-      <svg id="curve" viewBox="0 0 640 280" role="img" aria-labelledby="curve-t"><title id="curve-t">Recent coins placed along the bonding curve by how much they have raised</title></svg>
-      <p class="hint">Each coin sits where its raised SOL puts it. Further right is closer to full. Select one to open it.</p>
-    </div>
-    <div class="feed" id="feed" aria-live="polite"></div>
-    <p class="hint" id="feed-note">Loading the latest coins…</p>
-  </section>
 
   <details class="panel trade" id="trade">
     <summary>Trade a coin by its address</summary>

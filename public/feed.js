@@ -108,8 +108,9 @@
       box.textContent = '';
       list.forEach(c => box.appendChild(card(c)));
       lastList = list;
+      const cc = $('coin-count'); if (cc) cc.textContent = list.length ? '(' + list.length + ')' : '';
       drawCurve(list);
-      $('feed-note').textContent = list.length ? '' : 'No coins yet. Launch the first one above.';
+      $('feed-note').textContent = list.length ? '' : 'No coins yet. Launch the first one below.';
     } catch (err) {
       $('feed-note').textContent = 'Could not load the latest launches. Try again in a moment.';
     }

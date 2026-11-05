@@ -73,13 +73,20 @@
     li.appendChild(rank); li.appendChild(a); li.appendChild(nums); li.appendChild(top);
     return li;
   }
-  // The official coin, once the admin has launched it.
+  // The official coin sits at the top of the leaderboard, with its own numbers, once the admin has launched it.
   fetch('/api/founder', { headers: { Accept: 'application/json' } })
     .then(r => (r.ok ? r.json() : null))
     .then(f => {
-      if (!f || !f.launched) return;
-      $('of-img').src = f.imageUrl; $('of-name').textContent = f.launched.name; $('of-sym').textContent = '$' + f.launched.symbol;
-      $('of-ca').textContent = f.launched.mint; $('of-open').setAttribute('href', '/coin/' + encodeURIComponent(f.launched.pool));
+      const l = f && f.launched;
+      if (!l) return;
+      $('of-img').src = f.imageUrl; $('of-name').textContent = l.name; $('of-sym').textContent = '$' + l.symbol;
+      $('of-ca').textContent = l.mint; $('of-open').setAttribute('href', '/coin/' + encodeURIComponent(l.pool));
+      const pct = Number.isFinite(l.progress) ? Math.max(0, Math.min(100, Math.round(l.progress * 100))) : 0;
+      $('of-bar').style.width = (l.migrated ? 100 : pct) + '%';
+      $('of-pct').textContent = l.migrated ? 'Graduated' : pct + '% full';
+      $('of-raised').textContent = Number.isFinite(l.raisedSol) ? fmt(l.raisedSol) + (Number.isFinite(l.thresholdSol) ? ' / ' + fmt(l.thresholdSol) : '') + ' SOL' : '–';
+      $('of-status').textContent = l.migrated ? 'Graduated' : l.curveFull ? 'Curve full' : 'On the curve';
+      $('of-fees').textContent = Number.isFinite(l.feesWaitingSol) ? Number(l.feesWaitingSol.toFixed(4)) + ' SOL' : '–';
       $('official').hidden = false;
     })
     .catch(() => { /* no official coin to show */ });

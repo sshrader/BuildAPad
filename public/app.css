@@ -311,3 +311,13 @@ label.check, .links-body label.check, .fields label.check { display: flex; flex-
 .facts { display: grid; grid-template-columns: max-content minmax(0, 1fr); gap: 8px 16px; margin: 0; font-size: 14px; }
 .facts dt { color: var(--muted); }
 .facts dd { margin: 0; overflow-wrap: anywhere; }
+
+.official h3 { margin: 0; }
+.of-title { display: flex; flex-wrap: wrap; align-items: center; gap: 4px 10px; font: 700 1.4rem/1.2 var(--display); }
+.curve-line { display: flex; align-items: center; gap: 12px; }
+.curvebar { flex: 1; max-width: 320px; height: 8px; border-radius: 999px; background: var(--soft); border: 1px solid var(--line); overflow: hidden; }
+.curvebar i { display: block; height: 100%; background: var(--accent); transition: width .4s; }
+.ofstats { display: flex; flex-wrap: wrap; gap: 8px 26px; margin: 0; }
+.ofstats div { display: grid; gap: 2px; }
+.ofstats dt { font-size: 12.5px; color: var(--muted); }
+.ofstats dd { margin: 0; font: 600 1rem/1.2 var(--mono); font-variant-numeric: tabular-nums; }

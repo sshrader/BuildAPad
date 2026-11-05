@@ -62,20 +62,22 @@
     </div>
   </section>
 
-  <section class="band" id="official" aria-labelledby="official-h" hidden>
-    <div class="official">
-      <img id="of-img" alt="" width="72" height="72">
-      <div class="of-text">
-        <h2 id="official-h"><span id="of-name"></span> <span class="hint" id="of-sym"></span></h2>
-        <p class="hint">The official coin of {{name}}, launched on pump.fun.</p>
-        <div class="dl-result"><code class="cavalue" id="of-ca"></code></div>
-      </div>
-      <a class="btn go" id="of-open" href="/">View the coin</a>
-    </div>
-  </section>
-
   <section class="band" id="board" aria-labelledby="board-h">
     <div class="band-head"><h2 id="board-h">Leaderboard</h2><p class="hint">Pads ranked by coins launched on them, then by SOL raised.</p></div>
+    <div class="official" id="official" hidden>
+      <img id="of-img" alt="" width="72" height="72">
+      <div class="of-text">
+        <h3 class="of-title"><span id="of-name"></span> <span class="hint" id="of-sym"></span> <span class="badge">Official coin</span></h3>
+        <div class="dl-result"><code class="cavalue" id="of-ca"></code></div>
+        <div class="curve-line"><div class="curvebar" role="img" aria-label="How full the bonding curve is"><i id="of-bar" style="width:0%"></i></div><span class="hint" id="of-pct"></span></div>
+      </div>
+      <dl class="ofstats">
+        <div><dt>Raised</dt><dd id="of-raised">–</dd></div>
+        <div><dt>Status</dt><dd id="of-status">–</dd></div>
+        <div><dt>Fees waiting</dt><dd id="of-fees">–</dd></div>
+      </dl>
+      <a class="btn go" id="of-open" href="/">View the coin</a>
+    </div>
     <ol class="board" id="boardlist" aria-live="polite"></ol>
     <p class="hint" id="board-note">Loading…</p>
   </section>

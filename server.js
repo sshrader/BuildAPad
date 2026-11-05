@@ -90,17 +90,33 @@ function createApp(opts) {
     if (cur.n >= padAiCaps[kind]) return false;
     cur.n++; return true;
   };
-  // Has the official coin been launched? Once it has, that is remembered. Until then the chain is asked at most every 20 seconds.
-  let founderDone = null, founderAsked = 0;
+  // The official coin: once it exists on-chain that is remembered, and its numbers (curve, fees waiting) are refreshed at most
+  // every 20 seconds, so the home page never causes a flood of chain reads.
+  let founderDone = null, founderAsked = 0, founderStats = null;
   async function founderLaunched() {
-    if (founderDone) return founderDone;
-    if (!founder || !launches || Date.now() - founderAsked < 20000) return null;
-    founderAsked = Date.now();
-    const e = launches.findByArt(founder.id);
-    if (!e) return null;
-    const d = await launches.detail(e.pool);
-    if (d.status === 200) founderDone = { pool: e.pool, mint: e.mint, name: e.name, symbol: e.symbol };
-    return founderDone;
+    if (!founder || !launches) return null;
+    if (!founderDone) {
+      if (Date.now() - founderAsked < 20000) return null;
+      founderAsked = Date.now();
+      const e = launches.findByArt(founder.id);
+      if (!e) return null;
+      const d = await launches.detail(e.pool);
+      if (d.status !== 200) return null;
+      founderDone = { pool: e.pool, mint: e.mint, name: e.name, symbol: e.symbol };
+      founderStats = { at: Date.now(), d: d.body, fees: null };
+    }
+    if (!founderStats || Date.now() - founderStats.at > 20000) {
+      const at = Date.now();
+      const d = await launches.detail(founderDone.pool).catch(() => null);
+      let fees = founderStats ? founderStats.fees : null;
+      if (launcher) { const f = await launcher.fees(founderDone.mint, { ip: 'home' }).catch(() => null); if (f && f.status === 200) fees = f.body; }
+      founderStats = { at, d: d && d.status === 200 ? d.body : (founderStats && founderStats.d), fees };
+    }
+    const d = founderStats.d || {}, f = founderStats.fees || {};
+    return Object.assign({}, founderDone, {
+      raisedSol: d.raisedSol, thresholdSol: d.thresholdSol, progress: d.progress, migrated: Boolean(d.migrated), curveFull: Boolean(d.curveFull),
+      createdAt: d.createdAt, feesWaitingSol: Number.isFinite(f.pendingSol) ? f.pendingSol : null, splitOk: f.splitOk === undefined ? null : Boolean(f.splitOk)
+    });
   }
   const uploadAllowed = ip => {
     const t = Date.now();

@@ -111,7 +111,7 @@
 
     const f = add(body, 'dl', undefined, 'facts');
     function fact(label, node) { add(f, 'dt', label); const dd = add(f, 'dd'); if (typeof node === 'string') dd.textContent = node; else dd.appendChild(node); }
-    if (c.chat !== false) startChat(box, c);
+    if (c.chat !== false) { startReport(box, c); startChat(box, c); }
     const sp = cfg && cfg.split;
     if (sp && Number.isFinite(sp.creatorPct) && Number.isFinite(sp.platformPct)) {
       fact('Creator fees', 'Trades on this coin pay a creator fee, shared on-chain between the wallets in its split (shown above).');
@@ -205,6 +205,30 @@
     });
     document.addEventListener('animalpad:wallet', draw);
     load();
+  }
+
+  // The mascot's report: the server reads the numbers and the AI phrases them. Without the AI, the numbers show on their own.
+  function startReport(parent, c) {
+    const wrap = add(parent, 'div', undefined, 'chat report');
+    wrap.hidden = true;
+    fetch('/api/coin/report?pool=' + encodeURIComponent(c.pool), { headers: { Accept: 'application/json' } })
+      .then(r => (r.ok ? r.json() : null))
+      .then(b => {
+        if (!b || !b.facts) return;
+        const f = b.facts, bits = [];
+        if (Number.isFinite(f.percentFull)) bits.push(f.percentFull + '% full');
+        if (Number.isFinite(f.raisedSol)) bits.push(f.raisedSol + ' SOL raised');
+        if (f.holders !== null && f.holders !== undefined) bits.push(f.holders + ' holders');
+        if (Number.isFinite(f.biggestHolderPercentOfSupply)) bits.push('biggest holder ' + f.biggestHolderPercentOfSupply + '%');
+        if (Number.isFinite(f.tradesLastHour)) bits.push(f.tradesLastHour + ' trades in the last hour');
+        if (!b.report && !bits.length) return;
+        add(wrap, 'h2', (b.mascot || c.mascotName || c.name) + "'s report");
+        if (b.report) add(wrap, 'p', b.report);
+        if (bits.length) add(wrap, 'p', bits.join(' · '), 'hint');
+        if (b.report) add(wrap, 'p', 'Written by an AI mascot from live numbers. Not advice.', 'hint');
+        wrap.hidden = false;
+      })
+      .catch(() => { /* no report */ });
   }
 
   // Talk to the mascot. Each reply comes from the server; nothing typed here is ever rendered as HTML.

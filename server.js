@@ -93,6 +93,7 @@ function createApp(opts) {
   // The official coin: once it exists on-chain that is remembered, and its numbers (curve, fees waiting) are refreshed at most
   // every 20 seconds, so the home page never causes a flood of chain reads.
   let founderDone = null, founderAsked = 0, founderStats = null;
+  const reportCache = new Map();
   async function founderLaunched() {
     if (!founder || !launches) return null;
     if (!founderDone) {
@@ -298,6 +299,45 @@ function createApp(opts) {
     }
     if (pathname === '/admin') pathname = '/admin.html';
     if (pathname === '/admin/launch') pathname = '/admin-launch.html';
+
+    // The mascot's report on a coin: numbers the server read from the chain, phrased by the AI. Cached per coin, so a busy
+    // page costs one short AI call every few minutes. If the AI is off or fails, the numbers are still returned.
+    if (req.method === 'GET' && pathname === '/api/coin/report') {
+      const noStore = Object.assign({}, JSON_TYPE, { 'Cache-Control': 'no-store' });
+      const pool = url.searchParams.get('pool') || '';
+      if (!launches || !launcher) return send(res, 404, JSON.stringify({ error: 'not_found' }), noStore);
+      (async () => {
+        const hit = reportCache.get(pool);
+        if (hit && Date.now() - hit.at < 300000) return send(res, 200, JSON.stringify(hit.value), noStore);
+        const d = await launches.detail(pool);
+        if (d.status !== 200) return send(res, d.status === 400 ? 400 : 404, JSON.stringify({ error: d.status === 400 ? 'bad_request' : 'not_found' }), noStore);
+        const set = padStore && d.body.pad ? padStore.settings(d.body.pad) : null;
+        if (set && !set.ai.chat) return send(res, 403, JSON.stringify({ error: 'ai_off' }), noStore);
+        const act = await launcher.activity(d.body.mint || pool, { ip: clientIp(req) });
+        const a = act.status === 200 ? act.body : {};
+        const facts = {
+          raisedSol: Number.isFinite(d.body.raisedSol) ? Number(d.body.raisedSol.toFixed(3)) : null,
+          targetSol: Number.isFinite(d.body.thresholdSol) ? Number(d.body.thresholdSol.toFixed(2)) : null,
+          percentFull: Number.isFinite(d.body.progress) ? Math.round(d.body.progress * 100) : null,
+          graduated: d.body.migrated ? 'yes' : 'no',
+          holders: a.holders === null || a.holders === undefined ? null : a.holders + (a.holdersCapped ? ' or more' : ''),
+          biggestHolderPercentOfSupply: a.topHolderPct,
+          percentStillOnCurve: a.onCurvePct,
+          tradesLastHour: a.tradesLastHour,
+          recentTrades: a.trades
+        };
+        const value = { report: '', mascot: set && set.ai.mascotName ? set.ai.mascotName : '', facts: facts, at: Date.now() };
+        let r = null;
+        if (art.info().enabled && (!d.body.pad || padAiTake(d.body.pad, 'chat'))) {
+          r = await art.report(facts, { name: d.body.name, mascot: { name: value.mascot, persona: set ? set.ai.mascotPersona : '' } }).catch(() => null);
+        }
+        if (r && r.status === 200) value.report = r.body.report;
+        reportCache.set(pool, { at: Date.now(), value });
+        if (reportCache.size > 500) reportCache.delete(reportCache.keys().next().value);
+        return send(res, 200, JSON.stringify(value), noStore);
+      })().catch(() => send(res, 500, JSON.stringify({ error: 'server_error' }), noStore));
+      return;
+    }
 
     // Chat with a coin's mascot. The character is looked up from the coin itself, never taken from the request.
     if (req.method === 'POST' && pathname === '/api/coin/chat') {

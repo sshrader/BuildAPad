@@ -455,6 +455,56 @@ function createLauncher(opts) {
     }
   }
 
+
+  // What the chain shows about a coin's holders and recent trading, for the mascot's report. Cached for a minute.
+  const activityCache = new Map();
+  async function activity(mint, ctx) {
+    if (!enabled) return { status: 503, body: { error: 'launch_unavailable' } };
+    if (typeof mint !== 'string' || !B58_RE.test(mint)) return { status: 400, body: { error: 'bad_pool' } };
+    const nowMs = (o.now || Date.now)();
+    const hit = activityCache.get(mint);
+    if (hit && nowMs - hit.at < 60000) return { status: 200, body: hit.value };
+    if (!allowRead((ctx && ctx.ip) || 'unknown')) return { status: 429, body: { error: 'rate_limited' } };
+    try {
+      const c = await chain();
+      const curve = await readCurve(c, mint);
+      if (!curve) return { status: 404, body: { error: 'pool_not_found' } };
+      const curvePda = c.B.bondingCurveOf(mint);
+      const supply = Number(curve.token_total_supply) || 0;
+      const value = { holders: null, holdersCapped: false, topHolderPct: null, onCurvePct: null, trades: null, lastTradeAt: null, tradesLastHour: null };
+      try {
+        const big = await c.connection.getTokenLargestAccounts(new c.web3.PublicKey(mint));
+        const rows = (big && big.value) || [];
+        const infos = rows.length ? await c.connection.getMultipleAccountsInfo(rows.map(r => new c.web3.PublicKey(r.address))) : [];
+        let holders = 0, top = 0, onCurve = 0;
+        rows.forEach((r, i) => {
+          const amt = Number(r.amount) || 0;
+          const data = infos[i] && infos[i].data;
+          const owner = data && data.length >= 64 ? new c.web3.PublicKey(data.slice(32, 64)).toBase58() : '';
+          if (owner === curvePda.toBase58()) { onCurve += amt; return; }
+          if (amt > 0) { holders++; top = Math.max(top, amt); }
+        });
+        value.holders = holders; value.holdersCapped = rows.length >= 20;
+        if (supply > 0) { value.topHolderPct = Math.round(top / supply * 1000) / 10; value.onCurvePct = Math.round(onCurve / supply * 1000) / 10; }
+      } catch (e) { /* holders stay unknown */ }
+      try {
+        const sigs = (await c.connection.getSignaturesForAddress(curvePda, { limit: 25 })) || [];
+        const ok = sigs.filter(s => !s.err);
+        value.trades = ok.length;
+        const times = ok.map(s => Number(s.blockTime) || 0).filter(Boolean);
+        if (times.length) {
+          value.lastTradeAt = Math.max.apply(null, times) * 1000;
+          value.tradesLastHour = times.filter(t => nowMs - t * 1000 < 3600000).length;
+        }
+      } catch (e) { /* trades stay unknown */ }
+      activityCache.set(mint, { at: nowMs, value });
+      return { status: 200, body: value };
+    } catch (err) {
+      logger.error('Coin activity read failed: ' + (err && err.message ? err.message : 'unknown error'));
+      return { status: 502, body: { error: 'activity_failed' } };
+    }
+  }
+
   // What the platform has earned and not yet been paid, per coin. `mints` is the list of HatchPad launches.
   async function partnerFees(ctx) {
     if (!enabled) return { status: 503, body: { error: 'launch_unavailable' } };
@@ -478,7 +528,7 @@ function createLauncher(opts) {
     }
   }
 
-  return { info, lookupAddresses, prepare, step, status, pool, inspect, buy, fees, distribute, partnerFees };
+  return { info, lookupAddresses, prepare, step, status, pool, inspect, buy, fees, distribute, partnerFees, activity };
 }
 
 // Metadata for the token, read by wallets and explorers. Built from the link and the stored animal, so the

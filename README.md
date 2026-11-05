@@ -45,7 +45,26 @@ PLATFORM_FEE_WALLET=<public address> node server.js
 - Creating a pad needs a wallet signature (valid for 10 minutes). Limits: 3 pads per wallet, 5 creations per connection per hour.
 - Logos are checked by their first bytes (PNG or JPEG, up to 400 KB). SVG is refused.
 - Colors are hex only, fonts Google Fonts only, and all text is escaped, so a pad cannot add markup or script.
-- Pads cannot be edited after creation yet.
+- The owner can change a pad later at `/build?edit=<name>` (an Edit button shows on the pad page for the owner's wallet). It needs one signature. The name, page address, fee share and payout wallet cannot change.
+
+## Pad options
+
+Each pad can switch these on when it is built or edited:
+
+| Option | What it does |
+| --- | --- |
+| About text, banner | Shown at the top of the pad page. The banner is a PNG or JPEG (resized to 1200 by 400 in the browser). |
+| AI coin maker | Launchers describe an idea and AI draws the logo and suggests a name, ticker and description. The owner can set a picture style. Costs money, so each pad has a daily limit (`PAD_AI_DAILY_CAP`, default 30). Off by default. Needs an image provider key. |
+| Mascot chat | A chat on every coin page, with a mascot name and personality set by the owner. On by default, each pad limited to 200 messages a day (`PAD_CHAT_DAILY_CAP`). The mascot never gives financial advice or writes links. |
+| Required first buy | Launchers must buy at least a set amount (0.01 to 5 SOL) when creating the coin. It is checked on the server when the launch is prepared. With a lookup table the buy is in the same transaction; without one it is a later step a launcher could decline. |
+| Private pad | If the allow list has wallets, only those wallets (and the owner) can launch coins on the pad. |
+| Blocked wallets | Up to 100 wallets that cannot launch on the pad or buy its coins through this site. The owner is never blocked. |
+
+The wallet lists are checked on the server and are not put in the page, but they are readable through `GET /api/pads/<name>` (wallet addresses are public on-chain anyway). Blocking only covers this site. Anyone can still buy a coin directly on pump.fun, and nothing on our side can stop that.
+
+### Turning on AI (Railway variables)
+
+For Cloudflare Workers AI set: `IMAGE_PROVIDER=cloudflare`, `CLOUDFLARE_ACCOUNT_ID=<32-character account id>`, `CLOUDFLARE_API_TOKEN=<token with Workers AI access>`. Keep the token in Railway only. Optional spending caps: `ART_DAILY_CAP` (all pads together, default 300 pictures a day), `ART_PER_IP_PER_HOUR`, `PAD_AI_DAILY_CAP` (per pad), `PAD_CHAT_DAILY_CAP`.
 
 `pads/*.json` are operator brand files for the home page (`PAD`). `pads/buildapad.json` is the default; `hatchpad.json` and `robots.json` are older samples.
 

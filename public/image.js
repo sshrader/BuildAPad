@@ -15,13 +15,16 @@
     });
   }
 
-  function draw(img, size, background) {
+  // Crops the middle of the picture to a w by h rectangle (a square when h is left out).
+  function draw(img, w, background, h) {
+    h = h || w;
     const c = document.createElement('canvas');
-    c.width = c.height = size;
+    c.width = w; c.height = h;
     const g = c.getContext('2d');
-    if (background) { g.fillStyle = background; g.fillRect(0, 0, size, size); }
-    const side = Math.min(img.naturalWidth, img.naturalHeight);
-    g.drawImage(img, (img.naturalWidth - side) / 2, (img.naturalHeight - side) / 2, side, side, 0, 0, size, size);
+    if (background) { g.fillStyle = background; g.fillRect(0, 0, w, h); }
+    const scale = Math.max(w / img.naturalWidth, h / img.naturalHeight);
+    const sw = w / scale, sh = h / scale;
+    g.drawImage(img, (img.naturalWidth - sw) / 2, (img.naturalHeight - sh) / 2, sw, sh, 0, 0, w, h);
     return c;
   }
 
@@ -52,10 +55,22 @@
     throw new Error('too_big');
   }
 
+  // A wide banner, 1200 by 400, as JPEG so it stays small.
+  async function wide(file) {
+    if (!file || !/^image\/(png|jpeg|webp|gif)$/.test(file.type)) throw new Error('not_image');
+    if (file.size > 12000000) throw new Error('too_big');
+    const img = await load(file);
+    for (const t of [[1200, 400, 0.85], [900, 300, 0.75]]) {
+      const blob = await toBlob(draw(img, t[0], '#0a0b0e', t[1]), 'image/jpeg', t[2]);
+      if (blob && blob.size <= MAX_BYTES) { const base64 = await toBase64(blob); return { base64, dataUrl: 'data:image/jpeg;base64,' + base64, type: 'image/jpeg' }; }
+    }
+    throw new Error('too_big');
+  }
+
   // Wires a drop zone: click or drop a file, and call onPick with the shrunk picture. Returns nothing.
-  function dropzone(zone, input, onPick, onError) {
+  function dropzone(zone, input, onPick, onError, shape) {
     const take = async file => {
-      try { onPick(await square(file)); } catch (err) { onError(err && err.message === 'too_big' ? 'That picture is too large. Try a smaller one.' : 'Use a PNG, JPG, WebP or GIF picture.'); }
+      try { onPick(await (shape === 'wide' ? wide : square)(file)); } catch (err) { onError(err && err.message === 'too_big' ? 'That picture is too large. Try a smaller one.' : 'Use a PNG, JPG, WebP or GIF picture.'); }
     };
     input.addEventListener('change', () => { if (input.files && input.files[0]) take(input.files[0]); input.value = ''; });
     ['dragenter', 'dragover'].forEach(ev => zone.addEventListener(ev, e => { e.preventDefault(); zone.classList.add('over'); }));
@@ -64,5 +79,5 @@
     zone.addEventListener('keydown', e => { if (e.key === 'Enter' || e.key === ' ') { e.preventDefault(); input.click(); } });
   }
 
-  window.BapImage = { square, dropzone };
+  window.BapImage = { square, wide, dropzone };
 })();

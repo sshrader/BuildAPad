@@ -287,3 +287,18 @@ details.trade[open] summary::before { transform: rotate(90deg); }
 .check input { width: 18px; height: 18px; accent-color: var(--accent); flex: none; margin: 0; }
 input[readonly] { opacity: .75; cursor: not-allowed; }
 label.check, .links-body label.check, .fields label.check { display: flex; flex-direction: row; align-items: center; gap: 10px; }
+
+/* Builder extras */
+.field.sub { margin-left: 28px; }
+.two { display: grid; grid-template-columns: repeat(2, minmax(0, 1fr)); gap: 12px; }
+.two.sub { margin-left: 28px; }
+@media (max-width: 560px) { .two { grid-template-columns: 1fr; } .field.sub, .two.sub { margin-left: 0; } }
+.drop.wide { aspect-ratio: 3 / 1; min-height: 0; }
+.drop.wide img { width: 100%; height: 100%; object-fit: cover; }
+.field.off, .sub.off { opacity: .45; pointer-events: none; }
+.padbanner { width: 100%; aspect-ratio: 3 / 1; object-fit: cover; border-radius: calc(var(--r) + 4px); border: 1px solid var(--line); display: block; background: var(--soft); }
+.padabout { margin: 0; max-width: 62ch; color: var(--muted); white-space: pre-line; overflow-wrap: anywhere; }
+.badge { display: inline-flex; align-items: center; gap: 6px; padding: 3px 12px; border-radius: 999px; border: 1px solid color-mix(in srgb, var(--accent) 50%, var(--line)); color: var(--text); font: 600 12.5px/1.4 var(--font); width: fit-content; }
+.aipanel { display: grid; gap: 10px; padding: 16px; border: 1px dashed color-mix(in srgb, var(--accent) 45%, var(--line)); border-radius: var(--r); background: color-mix(in srgb, var(--accent) 5%, var(--paper)); }
+.aipanel .row { flex-wrap: nowrap; }
+.aipanel .row input { flex: 1; }

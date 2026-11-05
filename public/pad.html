@@ -30,12 +30,24 @@
   <section class="padhero" aria-labelledby="h1">
     <h1 id="h1">Launch your coin on {{name}}.</h1>
     <p class="lede">{{tagline}}</p>
+    <div class="row"><span class="badge" id="b-private" hidden>Private launchpad</span><span class="badge" id="b-buy" hidden></span><a class="btn" id="edit-pad" href="/build" hidden>Edit this pad</a></div>
+  </section>
+
+  <section class="stack" id="padinfo" hidden>
+    <img class="padbanner" id="padbanner" alt="" hidden>
+    <p class="padabout" id="padabout" hidden></p>
   </section>
 
   <section class="panel" id="start" aria-labelledby="start-h">
     <div class="launchgrid">
       <form class="fields" id="coinform" novalidate autocomplete="off">
         <h2 id="start-h">Your coin</h2>
+        <div class="aipanel" id="aipanel" hidden>
+          <b>Draw it with AI</b>
+          <span class="hint">Describe your coin in a few words. AI draws a logo and suggests a name, ticker and description you can change.</span>
+          <div class="row"><input type="text" id="ai-idea" maxlength="120" placeholder="a sleepy lighthouse keeper cat" aria-label="Describe your coin"><button type="button" class="btn go" id="ai-go">Draw it</button></div>
+          <p class="status" id="ai-status" role="status"></p>
+        </div>
         <label>Coin name <input type="text" id="c-name" maxlength="32" placeholder="Moon Lantern"></label>
         <label>Ticker <input type="text" id="c-sym" maxlength="10" placeholder="LANTERN" spellcheck="false"></label>
         <label>Description (optional) <textarea id="c-desc" maxlength="200" placeholder="What is this coin about?"></textarea></label>

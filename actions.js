@@ -71,7 +71,7 @@ function createActions(opts) {
     if (d.status !== 200) return { status: 404, body: { message: 'Coin not found.' } };
     const r = await launcher.buy({ pool, buyer: account, sol }, ctx);
     if (r.status !== 200) {
-      const why = { rate_limited: 'Too many requests. Wait a minute.', migrated: 'This coin has moved to its trading pool.', curve_full: 'The curve is full.' };
+      const why = { rate_limited: 'Too many requests. Wait a minute.', migrated: 'This coin has moved to its trading pool.', curve_full: 'The curve is full.', denied: 'This wallet cannot buy through this launchpad.' };
       return { status: r.status >= 500 ? 502 : 400, body: { message: why[r.body && r.body.error] || 'Could not prepare the buy. Try again.' } };
     }
     return { status: 200, body: { type: 'transaction', transaction: r.body.transaction, message: 'Buy ' + sol + ' SOL of ' + d.body.name + (isMain ? '.' : ' (devnet test coins).') } };

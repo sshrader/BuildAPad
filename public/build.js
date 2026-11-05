@@ -7,8 +7,10 @@
   const PRESETS = ['#ff8f3d', '#5b8cff', '#8b5cf6', '#22c55e', '#ec4899', '#06b6d4', '#ef4444', '#e5e7eb'];
 
   const B58 = /^[1-9A-HJ-NP-Za-km-z]{32,44}$/;
-  const state = { payout: '', name: '', slug: '', slugEdited: false, tagline: '', accent: PRESETS[1], corners: 'round', ownerPct: 15, logo: null };
-  let cfg = { enabled: false, platformPct: 10, maxOwnerPct: 40 };
+  const state = { banner: null, removeBanner: false, payout: '', name: '', slug: '', slugEdited: false, tagline: '', accent: PRESETS[1], corners: 'round', ownerPct: 15, logo: null };
+  let cfg = { enabled: false, platformPct: 10, maxOwnerPct: 40, aiAvailable: false };
+  let editing = null;      // the pad being edited (its public record), or null when building a new one
+  const edit = new URLSearchParams(location.search).get('edit') || '';
   let wallet = null;
   let busy = false;
 
@@ -17,6 +19,24 @@
     const n = parseInt(hex.slice(1), 16);
     return (0.2126 * (n >> 16 & 255) + 0.7152 * (n >> 8 & 255) + 0.0722 * (n & 255)) / 255 > 0.58 ? '#0a0b0e' : '#ffffff';
   };
+
+
+  // Wallet lists: pasted text, split on spaces, commas and new lines.
+  function parseWallets(text) {
+    const parts = String(text || '').split(/[\s,;]+/).map(x => x.trim()).filter(Boolean);
+    const list = [], bad = [];
+    parts.forEach(a => { if (!B58.test(a)) bad.push(a); else if (!list.includes(a)) list.push(a); });
+    return { list: list, bad: bad };
+  }
+  const isOn = id => $(id).checked;
+  function readSettings() {
+    return {
+      ai: { coinMaker: isOn('f-ai-maker'), style: $('f-ai-style').value.trim(), chat: isOn('f-ai-chat'), mascotName: $('f-ai-mname').value.trim(), mascotPersona: $('f-ai-mpersona').value.trim() },
+      rules: { requireFirstBuy: isOn('f-rule-buy'), minFirstBuySol: Number($('f-rule-min').value) },
+      access: { allow: parseWallets($('f-allow').value).list, deny: parseWallets($('f-deny').value).list },
+      page: { about: $('f-about').value.trim() }
+    };
+  }
 
   function say(text, bad) { const el = $('f-status'); el.textContent = text; el.className = 'status' + (bad ? ' bad' : ''); }
 
@@ -41,6 +61,13 @@
     $('f-pct-out').textContent = owner + '%';
     document.querySelectorAll('#f-swatches .swatch').forEach(b => b.setAttribute('aria-pressed', String(b.dataset.c === state.accent)));
     document.querySelectorAll('#f-corners button').forEach(b => b.setAttribute('aria-pressed', String(b.dataset.v === state.corners)));
+    const ai = cfg.aiAvailable;
+    $('f-ai-off').hidden = ai;
+    $('f-ai-maker').disabled = !ai; $('f-ai-chat').disabled = !ai;
+    $('f-ai-style-wrap').classList.toggle('off', !ai || !isOn('f-ai-maker'));
+    $('f-ai-mascot-wrap').classList.toggle('off', !ai || !isOn('f-ai-chat'));
+    $('f-rule-buy-wrap').classList.toggle('off', !isOn('f-rule-buy'));
+    $('f-bremove').hidden = !(state.banner || (editing && editing.bannerUrl && !state.removeBanner));
     $('f-connect').hidden = Boolean(wallet);
     $('f-go').hidden = !wallet;
     $('f-go').disabled = busy || !cfg.enabled;
@@ -61,6 +88,17 @@
     paint();
   });
   $('f-payout').addEventListener('input', e => { state.payout = e.target.value.trim(); });
+  ['f-ai-maker', 'f-ai-chat', 'f-rule-buy'].forEach(id => $(id).addEventListener('change', paint));
+  window.BapImage.dropzone($('f-bdrop'), $('f-bfile'), pic => {
+    state.banner = pic; state.removeBanner = false;
+    $('f-bdrop-img').src = pic.dataUrl; $('f-bdrop-img').hidden = false; $('f-bdrop-empty').hidden = true;
+    $('f-banner-status').textContent = ''; $('f-banner-status').className = 'status';
+    paint();
+  }, msg => { $('f-banner-status').textContent = msg; $('f-banner-status').className = 'status bad'; }, 'wide');
+  $('f-bremove').addEventListener('click', () => {
+    state.banner = null; state.removeBanner = true;
+    $('f-bdrop-img').hidden = true; $('f-bdrop-empty').hidden = false; paint();
+  });
   $('f-tag').addEventListener('input', e => { state.tagline = e.target.value.trim(); paint(); });
   $('f-pct').addEventListener('input', e => { state.ownerPct = Number(e.target.value); paint(); });
   $('f-corners').addEventListener('click', e => { const b = e.target.closest('button'); if (b) { state.corners = b.dataset.v; paint(); } });
@@ -117,6 +155,11 @@
     bad_links: 'Check your links. A website needs https://, and X and Telegram take a handle like @yourpad.',
     stale_signature: 'The signature was too old. Try again.',
     bad_signature: 'The wallet signature did not match. Try again.',
+    bad_list: 'One of the wallet addresses is not valid, or a list has more than 100 wallets.',
+    bad_min_buy: 'The smallest first buy must be between 0.01 and 5 SOL.',
+    bad_banner: 'That banner could not be used. Try a PNG or JPG.',
+    not_owner: 'Only the wallet that built this pad can change it. Connect that wallet.',
+    not_found: 'That pad could not be found.',
     rate_limited: 'Too many pads from this connection. Try again later.',
     too_many_pads: 'This wallet already owns the maximum number of pads.'
   };
@@ -126,24 +169,36 @@
     if (busy || !wallet) return;
     if (!state.name || state.name.length < 2) { say(WHY.bad_name, true); return; }
     if (!/^[a-z0-9][a-z0-9-]{1,28}[a-z0-9]$/.test(state.slug)) { say(WHY.bad_slug, true); return; }
-    if (!state.logo) { say(WHY.bad_logo, true); return; }
+    if (!state.logo && !editing) { say(WHY.bad_logo, true); return; }
     if (state.payout && !B58.test(state.payout)) { say(WHY.bad_payout, true); return; }
+    const lists = [parseWallets($('f-allow').value), parseWallets($('f-deny').value)];
+    const badAddr = lists[0].bad.concat(lists[1].bad)[0];
+    if (badAddr) { say('This is not a valid wallet address: ' + badAddr.slice(0, 20) + (badAddr.length > 20 ? '…' : ''), true); return; }
+    if (lists[0].list.length > cfg.maxListSize || lists[1].list.length > cfg.maxListSize) { say(WHY.bad_list, true); return; }
+    if (editing && wallet !== editing.ownerWallet) { say(WHY.not_owner, true); return; }
     busy = true; paint();
     try {
       const ts = Date.now();
-      const msg = 'BuildAPad: create the launchpad "' + state.slug + '" owned by ' + wallet + ' with a ' + state.ownerPct + '% fee share paid to ' + (state.payout || wallet) + '. Time: ' + ts;
+      const msg = editing
+        ? 'BuildAPad: update the launchpad "' + editing.slug + '" owned by ' + wallet + '. Time: ' + ts
+        : 'BuildAPad: create the launchpad "' + state.slug + '" owned by ' + wallet + ' with a ' + state.ownerPct + '% fee share paid to ' + (state.payout || wallet) + '. Time: ' + ts;
       say('Approve the signature in your wallet. It does not spend anything.');
       const signature = await W.signMessage(msg);
-      say('Building your pad…');
+      say(editing ? 'Saving your changes…' : 'Building your pad…');
       const links = {};
       [['website', 'f-web'], ['twitter', 'f-x'], ['telegram', 'f-tg']].forEach(p => { const v = $(p[1]).value.trim(); if (v) links[p[0]] = v; });
-      const res = await fetch('/api/pads', {
-        method: 'POST', headers: { 'Content-Type': 'application/json' },
-        body: JSON.stringify({ slug: state.slug, name: state.name, tagline: state.tagline, accent: state.accent, corners: state.corners, ownerPct: state.ownerPct, ownerWallet: wallet, payoutWallet: state.payout || undefined, links: links, logo: state.logo.base64, ts: ts, signature: signature })
+      const payload = { name: state.name, tagline: state.tagline, accent: state.accent, corners: state.corners, links: links, settings: readSettings(), ownerWallet: wallet, ts: ts, signature: signature };
+      if (state.logo) payload.logo = state.logo.base64;
+      if (state.banner) payload.banner = state.banner.base64;
+      if (editing) { payload.removeBanner = state.removeBanner && !state.banner; payload.slug = editing.slug; }
+      else { payload.slug = state.slug; payload.ownerPct = state.ownerPct; payload.payoutWallet = state.payout || undefined; }
+      const res = await fetch(editing ? '/api/pads/' + editing.slug + '/update' : '/api/pads', {
+        method: 'POST', headers: { 'Content-Type': 'application/json' }, body: JSON.stringify(payload)
       });
       const body = await res.json().catch(() => null);
-      if (!res.ok || !body || !body.pad) { say(WHY[body && body.error] || 'Could not build the pad. Try again.', true); busy = false; paint(); return; }
+      if (!res.ok || !body || !body.pad) { say(WHY[body && body.error] || (editing ? 'Could not save the changes. Try again.' : 'Could not build the pad. Try again.'), true); busy = false; paint(); return; }
       const url = location.origin + '/p/' + body.pad.slug;
+      $('done-title').textContent = editing ? 'Your changes are saved' : 'Your pad is live';
       $('done-url').textContent = url; $('done-url').href = '/p/' + body.pad.slug;
       $('done-open').href = '/p/' + body.pad.slug;
       $('done').hidden = false; $('done').scrollIntoView({ behavior: 'smooth', block: 'center' });
@@ -155,6 +210,36 @@
     }
     busy = false; paint();
   });
+
+  // ----- Edit mode: /build?edit=<name> loads the pad into the same form. Name, address, fee share and payout wallet stay fixed.
+  function startEdit(p) {
+    editing = p;
+    state.name = p.name; state.slug = p.slug; state.slugEdited = true; state.tagline = p.tagline || ''; state.accent = p.accent; state.corners = p.corners; state.ownerPct = p.ownerPct;
+    $('f-name').value = p.name; $('f-slug').value = p.slug; $('f-tag').value = p.tagline || '';
+    $('f-pct').value = String(p.ownerPct); $('f-payout').value = p.payoutWallet && p.payoutWallet !== p.ownerWallet ? p.payoutWallet : '';
+    ['f-name', 'f-slug', 'f-pct', 'f-payout'].forEach(id => { $(id).disabled = true; });
+    $('f-color').value = p.accent;
+    const L = p.links || {};
+    $('f-web').value = L.website || ''; $('f-x').value = L.twitter || ''; $('f-tg').value = L.telegram || '';
+    if (L.website || L.twitter || L.telegram) $('f-links').open = true;
+    const s = p.settings || {};
+    const ai = s.ai || {}, rules = s.rules || {}, acc = s.access || {};
+    $('f-ai-maker').checked = Boolean(ai.coinMaker); $('f-ai-style').value = ai.style || ''; $('f-ai-chat').checked = ai.chat !== false;
+    $('f-ai-mname').value = ai.mascotName || ''; $('f-ai-mpersona').value = ai.mascotPersona || '';
+    $('f-rule-buy').checked = Boolean(rules.requireFirstBuy); if (rules.minFirstBuySol) $('f-rule-min').value = String(rules.minFirstBuySol);
+    $('f-allow').value = (acc.allow || []).join('\n'); $('f-deny').value = (acc.deny || []).join('\n');
+    $('f-about').value = (s.page && s.page.about) || '';
+    $('f-drop-img').src = p.logoUrl; $('f-drop-img').hidden = false; $('f-drop-empty').hidden = true;
+    $('pv-img').src = p.logoUrl; $('pv-img').hidden = false; $('pv-letter').hidden = true;
+    if (p.bannerUrl) { $('f-bdrop-img').src = p.bannerUrl; $('f-bdrop-img').hidden = false; $('f-bdrop-empty').hidden = true; }
+    $('page-title').textContent = 'Edit your pad';
+    $('page-lede').textContent = 'Change the look, links, helpers and rules. The name, address, fee share and payout wallet are fixed once a pad is built.';
+    $('f-go').textContent = 'Save changes';
+    $('g-sign').textContent = 'Sign and save';
+    $('sign-hint').textContent = 'Your wallet signs one line of text that says which pad you are changing. No money moves and nothing is sent to the chain. Only the wallet that built the pad can change it.';
+    document.title = 'Edit ' + p.name;
+    paint();
+  }
 
   // ----- Start up
   fetch('/api/builder/config', { headers: { Accept: 'application/json' } })
@@ -168,6 +253,13 @@
       if (!c.enabled) say('Building pads is not switched on for this site yet.', true);
       paint();
     })
-    .catch(() => paint());
+    .catch(() => paint())
+    .then(() => {
+      if (!edit) return;
+      return fetch('/api/pads/' + encodeURIComponent(edit), { headers: { Accept: 'application/json' } })
+        .then(r => (r.ok ? r.json() : null))
+        .then(j => { if (j && j.pad) startEdit(j.pad); else say('That pad could not be found.', true); })
+        .catch(() => say('Could not load that pad. Try again in a moment.', true));
+    });
   paint();
 })();

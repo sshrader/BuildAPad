@@ -13,6 +13,22 @@
   $('brand').setAttribute('href', '/p/' + (ex.slug || ''));
   $('built-with').textContent = PAD.platform || 'BuildAPad';
 
+  // The pad's own extras: banner, about text, badges, the owner's edit link, and the first-buy rule.
+  if (ex.bannerUrl || ex.about) {
+    $('padinfo').hidden = false;
+    if (ex.bannerUrl) { const b = $('padbanner'); b.src = ex.bannerUrl; b.hidden = false; b.addEventListener('error', () => { b.hidden = true; }); }
+    if (ex.about) { const a = $('padabout'); a.textContent = ex.about; a.hidden = false; }
+  }
+  if (ex.private) $('b-private').hidden = false;
+  if (ex.requireFirstBuy) {
+    $('b-buy').textContent = 'First buy of ' + ex.minFirstBuySol + ' SOL or more required'; $('b-buy').hidden = false;
+    const buy = $('l-buy'); if (buy) { buy.min = String(ex.minFirstBuySol); buy.placeholder = String(ex.minFirstBuySol); }
+  }
+  $('edit-pad').setAttribute('href', '/build?edit=' + encodeURIComponent(ex.slug || ''));
+  const showEdit = addr => { $('edit-pad').hidden = !(addr && addr === ex.ownerWallet); };
+  document.addEventListener('animalpad:wallet', e => showEdit(e.detail && e.detail.address));
+  if (window.AnimalWallet && window.AnimalWallet.address) showEdit(window.AnimalWallet.address);
+
   // The fee split, from the server's real numbers
   fetch('/api/launch/config', { headers: { Accept: 'application/json' } }).then(r => r.json()).then(info => {
     const platform = info && Number.isFinite(info.platformPct) ? info.platformPct : 10;
@@ -82,6 +98,34 @@
     } catch (err) { say('Could not reach the server. Try again.', true); }
     busy = false; $('c-go').disabled = false;
   });
+
+  // AI picture maker, when the owner switched it on. The result fills the form; the picture is then saved like an uploaded one.
+  if (ex.aiCoinMaker) {
+    fetch('/api/art/config', { headers: { Accept: 'application/json' } }).then(r => r.json()).then(c => { if (c && c.enabled) $('aipanel').hidden = false; }).catch(() => { /* stays hidden */ });
+    const AIWHY = { ai_off: 'The AI picture maker is switched off on this launchpad.', not_allowed: 'This wallet cannot use this launchpad.', pad_daily_limit: 'This launchpad has used its AI pictures for today. Upload a picture instead, or try tomorrow.', daily_limit: 'The AI picture maker is resting for today. Upload a picture instead.', rate_limited: 'Too many tries. Wait a few minutes.', bad_prompt: 'Describe your coin in a few words.', blocked_prompt: 'That idea is not allowed. Ideas that copy a real person, brand or character are blocked.', generation_failed: 'The picture could not be drawn. Try again.', art_unavailable: 'The AI picture maker is not switched on for this site.' };
+    const aiSay = (t, bad) => { const el = $('ai-status'); el.textContent = t; el.className = 'status' + (bad ? ' bad' : ''); };
+    let aiBusy = false;
+    $('ai-go').addEventListener('click', async () => {
+      if (aiBusy) return;
+      const idea = $('ai-idea').value.trim();
+      if (idea.length < 3) { aiSay(AIWHY.bad_prompt, true); return; }
+      aiBusy = true; $('ai-go').disabled = true; aiSay('Drawing… this takes about 10 seconds.');
+      try {
+        const res = await fetch('/api/art/generate', { method: 'POST', headers: { 'Content-Type': 'application/json' }, body: JSON.stringify({ animal: idea, pad: ex.slug, wallet: (window.AnimalWallet && window.AnimalWallet.address) || undefined }) });
+        const body = await res.json().catch(() => null);
+        if (!res.ok || !body || !body.imageUrl) { aiSay(AIWHY[body && body.error] || 'Could not draw that. Try again.', true); }
+        else {
+          // Pull the drawn picture back through the same shrink-and-check step as an upload, so there is one path to launch.
+          const blob = await (await fetch(body.imageUrl)).blob();
+          pic = await window.BapImage.square(new File([blob], 'ai.' + (blob.type === 'image/jpeg' ? 'jpg' : 'png'), { type: blob.type || 'image/png' }));
+          $('c-drop-img').src = pic.dataUrl; $('c-drop-img').hidden = false; $('c-drop-empty').hidden = true;
+          $('c-name').value = body.name || ''; $('c-sym').value = String(body.ticker || '').toUpperCase(); $('c-desc').value = body.description || '';
+          aiSay('Done. Change anything you like, then press Continue.'); paint(); unstage();
+        }
+      } catch (err) { aiSay('Could not draw that. Try again.', true); }
+      aiBusy = false; $('ai-go').disabled = false;
+    });
+  }
 
   paint();
 })();

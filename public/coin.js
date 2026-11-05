@@ -111,7 +111,7 @@
 
     const f = add(body, 'dl', undefined, 'facts');
     function fact(label, node) { add(f, 'dt', label); const dd = add(f, 'dd'); if (typeof node === 'string') dd.textContent = node; else dd.appendChild(node); }
-    startChat(box, c);
+    if (c.chat !== false) startChat(box, c);
     const sp = cfg && cfg.split;
     if (sp && Number.isFinite(sp.creatorPct) && Number.isFinite(sp.platformPct)) {
       fact('Creator fees', 'Trades on this coin pay a creator fee, shared on-chain between the wallets in its split (shown above).');
@@ -210,12 +210,12 @@
   // Talk to the mascot. Each reply comes from the server; nothing typed here is ever rendered as HTML.
   function startChat(parent, c) {
     const wrap = add(parent, 'div', undefined, 'chat');
-    add(wrap, 'h2', 'Talk to ' + c.name);
+    add(wrap, 'h2', 'Talk to ' + (c.mascotName || c.name));
     const log = add(wrap, 'div', undefined, 'chat-log');
     log.setAttribute('aria-live', 'polite');
     const row = add(wrap, 'form', undefined, 'chat-row');
     const input = add(row, 'input');
-    input.type = 'text'; input.maxLength = 200; input.placeholder = 'Say hi to ' + c.name;
+    input.type = 'text'; input.maxLength = 200; input.placeholder = 'Say hi to ' + (c.mascotName || c.name);
     input.setAttribute('aria-label', 'Message to ' + c.name);
     const send = add(row, 'button', 'Send', 'btn go'); send.type = 'submit';
     add(wrap, 'p', 'An AI cartoon mascot. It does not give advice and can say silly things.', 'hint');

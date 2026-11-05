@@ -152,10 +152,15 @@ async function withServer(opts, fn) {
 
 test('server: studio routes, picture serving and metadata with the picture', async () => {
   const { art } = make();
-  await withServer({ art }, async base => {
+  // The picture maker only runs for a pad whose owner switched it on.
+  const padStore = { settings: slug => (slug === 'p1' ? { ai: { coinMaker: true, style: 'pixel art', chat: true } } : slug === 'off' ? { ai: { coinMaker: false } } : null), accessFor: () => '', buyBlocked: () => false };
+  await withServer({ art, padStore }, async base => {
     assert.deepEqual(await (await fetch(base + '/api/art/config')).json(), { enabled: true });
+    assert.equal((await fetch(base + '/api/art/generate', { method: 'POST', body: JSON.stringify({ animal: 'a tired heron' }) })).status, 400);
+    assert.equal((await fetch(base + '/api/art/generate', { method: 'POST', body: JSON.stringify({ animal: 'a tired heron', pad: 'nope' }) })).status, 400);
+    assert.equal((await fetch(base + '/api/art/generate', { method: 'POST', body: JSON.stringify({ animal: 'a tired heron', pad: 'off' }) })).status, 403);
     assert.deepEqual(await (await fetch(base + '/healthz')).json(), { ok: true, art: true });
-    const res = await fetch(base + '/api/art/generate', { method: 'POST', body: JSON.stringify({ animal: 'a tired heron' }) });
+    const res = await fetch(base + '/api/art/generate', { method: 'POST', body: JSON.stringify({ animal: 'a tired heron', pad: 'p1' }) });
     assert.equal(res.status, 200);
     assert.equal(res.headers.get('cache-control'), 'no-store');
     const data = await res.json();
@@ -173,12 +178,12 @@ test('server: studio routes, picture serving and metadata with the picture', asy
     const noArt = await (await fetch(base + '/meta.json?n=Ok&s=OK&i=' + 'e'.repeat(16))).json();
     assert.equal(noArt.image, '');
     assert.equal((await fetch(base + '/api/art/generate', { method: 'POST', body: '{nope' })).status, 400);
-    assert.equal((await fetch(base + '/api/art/generate', { method: 'POST', body: JSON.stringify({ animal: 'x'.repeat(2000) }) })).status, 400);
+    assert.equal((await fetch(base + '/api/art/generate', { method: 'POST', body: JSON.stringify({ animal: 'x'.repeat(2000), pad: 'p1' }) })).status, 400);
     assert.equal((await fetch(base + '/api/art/generate')).status, 404);
   });
-  await withServer({ art: createArt({ logger: quiet }) }, async base => {
+  await withServer({ art: createArt({ logger: quiet }), padStore }, async base => {
     assert.deepEqual(await (await fetch(base + '/api/art/config')).json(), { enabled: false });
-    assert.equal((await fetch(base + '/api/art/generate', { method: 'POST', body: JSON.stringify({ animal: 'a heron' }) })).status, 503);
+    assert.equal((await fetch(base + '/api/art/generate', { method: 'POST', body: JSON.stringify({ animal: 'a heron', pad: 'p1' }) })).status, 503);
   });
 });
 

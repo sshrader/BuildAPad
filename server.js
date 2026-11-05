@@ -78,6 +78,18 @@ function createApp(opts) {
   const padStore = opts.padStore || null;
   // Picture uploads are limited per visitor, like pad creation.
   const uploadHits = new Map();
+  // Does the wallet sit on the deny list of the pad the coin was launched on? Used by every way of buying through this site.
+  const isDenied = (pool, wallet) => { const slug = launches ? launches.padOf(pool) : ''; return Boolean(slug && padStore && padStore.buyBlocked(slug, wallet)); };
+  // Each pad's AI picture maker and mascot chat have their own daily limit, so one pad cannot use up the whole budget.
+  const padAiCaps = { image: Number(opts.padAiDailyCap) || 30, chat: Number(opts.padChatDailyCap) || 200 };
+  const padAi = new Map();
+  const padAiTake = (slug, kind) => {
+    const day = Math.floor(Date.now() / 86400000), key = kind + ':' + slug;
+    const cur = padAi.get(key);
+    if (!cur || cur.day !== day) { padAi.set(key, { day, n: 1 }); if (padAi.size > 5000) for (const [k, v] of padAi) if (v.day !== day) padAi.delete(k); return true; }
+    if (cur.n >= padAiCaps[kind]) return false;
+    cur.n++; return true;
+  };
   const uploadAllowed = ip => {
     const t = Date.now();
     const recent = (uploadHits.get(ip) || []).filter(x => t - x < 3600000);
@@ -137,7 +149,7 @@ function createApp(opts) {
     if (req.method === 'POST' && pathname === '/api/pads') {
       const noStore = Object.assign({}, JSON_TYPE, { 'Cache-Control': 'no-store', Connection: 'close' });
       if (!padStore) return send(res, 404, JSON.stringify({ error: 'not_found' }), noStore);
-      readJson(req, 700000).then(body => {
+      readJson(req, 1500000).then(body => {
         if (!body) return send(res, 400, JSON.stringify({ error: 'bad_request' }), noStore);
         const r = padStore.create(body, { ip: clientIp(req) });
         send(res, r.status, JSON.stringify(r.body), noStore);
@@ -145,12 +157,32 @@ function createApp(opts) {
       return;
     }
 
-    // The POST routes: each asks the server to prepare an unsigned transaction for the wallet to sign.
+    // Changing a pad later: the same signed-wallet idea, with a short message naming the pad.
+    const upm = /^\/api\/pads\/([a-z0-9-]{2,30})\/update$/.exec(pathname);
+    if (req.method === 'POST' && upm) {
+      const noStore = Object.assign({}, JSON_TYPE, { 'Cache-Control': 'no-store', Connection: 'close' });
+      if (!padStore) return send(res, 404, JSON.stringify({ error: 'not_found' }), noStore);
+      readJson(req, 1500000).then(body => {
+        if (!body) return send(res, 400, JSON.stringify({ error: 'bad_request' }), noStore);
+        const r = padStore.update(Object.assign({}, body, { slug: upm[1] }), { ip: clientIp(req) });
+        send(res, r.status, JSON.stringify(r.body), noStore);
+      }).catch(() => send(res, 500, JSON.stringify({ error: 'server_error' }), noStore));
+      return;
+    }
+
+    // The AI picture maker. It only runs for a pad whose owner switched it on, within that pad's own daily limit, in the
+    // owner's picture style. It costs money, so there is no pad-less version.
     if (req.method === 'POST' && pathname === '/api/art/generate') {
       const noStore = Object.assign({}, JSON_TYPE, { 'Cache-Control': 'no-store', Connection: 'close' });
-      readJson(req, 1024).then(body => {
+      readJson(req, 1200).then(body => {
         if (!body) return send(res, 400, JSON.stringify({ error: 'bad_request' }), noStore);
-        return art.generate(body, { ip: clientIp(req) }).then(r => send(res, r.status, JSON.stringify(r.body), noStore));
+        const slug = typeof body.pad === 'string' ? body.pad : '';
+        const set = padStore && slug ? padStore.settings(slug) : null;
+        if (!set) return send(res, 400, JSON.stringify({ error: 'bad_pad' }), noStore);
+        if (!set.ai.coinMaker) return send(res, 403, JSON.stringify({ error: 'ai_off' }), noStore);
+        if (typeof body.wallet === 'string' && padStore.accessFor(slug, body.wallet)) return send(res, 403, JSON.stringify({ error: 'not_allowed' }), noStore);
+        if (!padAiTake(slug, 'image')) return send(res, 429, JSON.stringify({ error: 'pad_daily_limit' }), noStore);
+        return art.generate({ animal: body.animal }, { ip: clientIp(req), style: set.ai.style, subject: 'coin idea' }).then(r => send(res, r.status, JSON.stringify(r.body), noStore));
       }).catch(() => send(res, 500, JSON.stringify({ error: 'server_error' }), noStore));
       return;
     }
@@ -171,7 +203,7 @@ function createApp(opts) {
       if (req.method === 'POST') {
         readJson(req, 2048).then(body => {
           if (!body) return fail(400, 'Bad request.');
-          return actions.transact(am[1], url.searchParams.get('amount'), body, { ip: clientIp(req), baseUrl: base, hasArt: () => false })
+          return actions.transact(am[1], url.searchParams.get('amount'), body, { ip: clientIp(req), baseUrl: base, hasArt: () => false, isDenied: isDenied })
             .then(r => send(res, r.status, JSON.stringify(r.body), H));
         }).catch(() => fail(500, 'Something went wrong.'));
         return;
@@ -224,7 +256,13 @@ function createApp(opts) {
         if (!body || typeof body.pool !== 'string') return send(res, 400, JSON.stringify({ error: 'bad_request' }), noStore);
         const d = await launches.detail(body.pool);
         if (d.status !== 200) return send(res, d.status === 400 ? 400 : 404, JSON.stringify({ error: d.status === 400 ? 'bad_request' : 'not_found' }), noStore);
-        const r = await art.chat({ name: d.body.name, description: d.body.description, mood: d.body.mood.label, message: body.message, history: body.history }, { ip: clientIp(req) });
+        // The coin's pad can switch chat off or give the mascot its own name and personality. Both come from the server's records.
+        const set = padStore && d.body.pad ? padStore.settings(d.body.pad) : null;
+        if (set && !set.ai.chat) return send(res, 403, JSON.stringify({ error: 'chat_off' }), noStore);
+        if (set && !padAiTake(d.body.pad, 'chat')) return send(res, 429, JSON.stringify({ error: 'pad_daily_limit' }), noStore);
+        const padRec = set ? padStore.get(d.body.pad) : null;
+        const mascot = set && (set.ai.mascotName || set.ai.mascotPersona) ? { name: set.ai.mascotName, persona: set.ai.mascotPersona, pad: padRec ? padRec.name : '' } : null;
+        const r = await art.chat({ name: d.body.name, description: d.body.description, mood: d.body.mood.label, message: body.message, history: body.history }, { ip: clientIp(req), mascot });
         return send(res, r.status, JSON.stringify(r.body), noStore);
       }).catch(() => send(res, 500, JSON.stringify({ error: 'server_error' }), noStore));
       return;
@@ -267,8 +305,15 @@ function createApp(opts) {
           const rec = padSlug ? padStore.get(padSlug) : null;
           if (action === 'prepare' && padSlug && !rec) return send(res, 400, JSON.stringify({ error: 'bad_pad' }), noStore);
           if (rec) padCtx = { owner: rec.payoutWallet || rec.ownerWallet, ownerPct: rec.ownerPct };
+          if (rec && action === 'prepare') {
+            // The pad's rules, checked here from the server's own records.
+            const why = typeof body.creator === 'string' ? padStore.accessFor(padSlug, body.creator) : '';
+            if (why) return send(res, 403, JSON.stringify({ error: 'not_allowed', reason: why }), noStore);
+            const rules = rec.settings.rules;
+            if (rules.requireFirstBuy && !(Number(body.firstBuySol) >= rules.minFirstBuySol)) return send(res, 400, JSON.stringify({ error: 'first_buy_required', min: rules.minFirstBuySol }), noStore);
+          }
         }
-        return launcher[action](body, { ip: clientIp(req), baseUrl: baseUrlFor(req), founder: founder, pad: padCtx, hasArt: id => Boolean(art.get(id)) })
+        return launcher[action](body, { ip: clientIp(req), baseUrl: baseUrlFor(req), founder: founder, pad: padCtx, hasArt: id => Boolean(art.get(id)), isDenied: isDenied })
           .then(r => {
             if (action === 'prepare' && r.status === 200 && launches) {
               launches.record({ pool: r.body.pool, mint: r.body.mint, name: cleanText(body.name, 32), symbol: String(body.symbol || '').replace(/^\$/, '').trim().toUpperCase(), creator: body.creator, art: body.art, pad: padSlug, preset: '', devBuySol: r.body.firstBuySol });
@@ -291,7 +336,7 @@ function createApp(opts) {
     // Launchpads: the list, one pad, and the numbers the builder needs (what the platform keeps, the most an owner can take).
     if (pathname === '/api/builder/config') {
       const info = launcher ? launcher.info() : { enabled: false, cluster: 'devnet', platformPct: 10 };
-      const body = { enabled: Boolean(padStore && info.enabled), cluster: info.cluster, platformPct: padStore ? padStore.platformPct : info.platformPct, maxOwnerPct: padStore ? padStore.maxOwnerPct : 0 };
+      const body = { enabled: Boolean(padStore && info.enabled), cluster: info.cluster, platformPct: padStore ? padStore.platformPct : info.platformPct, maxOwnerPct: padStore ? padStore.maxOwnerPct : 0, aiAvailable: Boolean(art.info().enabled), maxListSize: 100 };
       return send(res, 200, JSON.stringify(body), Object.assign({}, JSON_TYPE, { 'Cache-Control': 'no-store' }));
     }
     if (pathname === '/api/pads') {
@@ -320,6 +365,13 @@ function createApp(opts) {
       const l = padStore ? padStore.logo(lm[1]) : null;
       if (!l || l.ext !== lm[2]) return send(res, 404, 'Not found', TEXT_TYPE);
       return send(res, 200, req.method === 'HEAD' ? '' : l.buf, { 'Content-Type': l.ext === 'jpg' ? 'image/jpeg' : 'image/png', 'Cache-Control': 'public, max-age=3600' });
+    }
+
+    const bm = /^\/pad-banner\/([a-z0-9-]{2,30})\.(png|jpg)$/.exec(pathname);
+    if (bm) {
+      const l = padStore ? padStore.banner(bm[1]) : null;
+      if (!l || l.ext !== bm[2]) return send(res, 404, 'Not found', TEXT_TYPE);
+      return send(res, 200, req.method === 'HEAD' ? '' : l.buf, { 'Content-Type': l.ext === 'jpg' ? 'image/jpeg' : 'image/png', 'Cache-Control': 'public, max-age=300' });
     }
 
     // Whether launching is switched on, so the page knows whether to offer it.
@@ -357,6 +409,11 @@ function createApp(opts) {
       if (!launches) return send(res, 404, JSON.stringify({ error: 'not_found' }), noStore);
       launches.detail(dm[1]).then(r => {
         // A website the creator has not yet proven gets the code to put on it.
+        // Whether the coin's pad has the mascot chat on, and the mascot's name, so the page can show the right thing.
+        if (r.status === 200 && padStore && r.body.pad) {
+          const set = padStore.settings(r.body.pad);
+          if (set) { r.body.chat = set.ai.chat; r.body.mascotName = set.ai.mascotName; }
+        }
         if (r.status === 200 && r.body.links && r.body.links.website && !r.body.siteVerified && verifier.places(r.body.links.website).length) {
           r.body.verifyCode = verifier.code(r.body.pool, r.body.creator);
         }
@@ -511,7 +568,7 @@ if (require.main === module) {
     const id = art.seed(buf, text);
     if (id) founder = Object.assign({ id, ext: 'png', wallet: founderWallet, buf: buf }, text);
   }
-  const server = createApp({ art, launcher, launches, founder, pad, padStore, verifier: createVerifier({ secret: verifySecret || undefined }) });
+  const server = createApp({ art, launcher, launches, founder, pad, padStore, padAiDailyCap: Number(env("PAD_AI_DAILY_CAP")) || undefined, padChatDailyCap: Number(env("PAD_CHAT_DAILY_CAP")) || undefined, verifier: createVerifier({ secret: verifySecret || undefined }) });
   server.listen(PORT, '0.0.0.0', () => {
     console.log(pad.name + ' listening on port ' + PORT + (art.info().enabled ? ' (picture studio on, ' + art.provider + ')' : ' (picture studio OFF: ' + art.reason + '; provider ' + art.provider + ')') + (artDir ? ' (pictures saved in ' + artDir + ')' : ' (pictures in memory only: no volume)') +
       (launcher.info().enabled ? ' (' + cluster + ' launch on)' : ' (' + cluster + ' launch off: set PLATFORM_FEE_WALLET)') + (launchesFile ? ' (launch list saved in ' + launchesFile + ')' : ' (launch list in memory only)'));

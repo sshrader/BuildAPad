@@ -24,6 +24,7 @@
   }
 
   const WHY = {
+    denied: 'This wallet cannot buy through this launchpad. Anyone can still buy on pump.fun directly.',
     bad_pool: 'That is not a valid coin address.',
     pool_not_found: 'No coin found at that address on this network.',
     not_an_animalpad_pool: 'That coin was not launched through ' + window.PAD.platform + '.',

@@ -364,6 +364,8 @@ function createLauncher(opts) {
     const b = input && typeof input === 'object' ? input : {};
     if (typeof b.pool !== 'string' || !B58_RE.test(b.pool)) return { status: 400, body: { error: 'bad_pool' } };
     if (typeof b.buyer !== 'string' || !B58_RE.test(b.buyer)) return { status: 400, body: { error: 'bad_buyer' } };
+    // A pad's owner can block wallets from buying through this site. (Anyone can still buy on pump.fun itself.)
+    if (ctx && typeof ctx.isDenied === 'function' && ctx.isDenied(b.pool, b.buyer)) return { status: 403, body: { error: 'denied' } };
     const sol = Number(b.sol);
     if (!Number.isFinite(sol) || sol < MIN_BUY_SOL || sol > MAX_BUY_SOL) return { status: 400, body: { error: 'bad_amount' } };
     try {

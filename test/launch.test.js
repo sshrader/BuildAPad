@@ -486,3 +486,14 @@ test('a launchpad owner becomes a third shareholder; a wallet that appears twice
   const made = await launcher.prepare(good, Object.assign({ pad: { owner: OWNER, ownerPct: 15 } }, ctx));
   assert.deepEqual(made.body.split, { creatorPct: 65, ownerPct: 15, platformPct: 20 });
 });
+
+test('buying through the site is refused for a wallet the pad has denied', async () => {
+  const { launcher, st } = make();
+  const mint = key();
+  st.putCurve(mint, { creator: key() });
+  const body = { pool: mint, buyer: CREATOR, sol: 0.1 };
+  assert.equal((await launcher.buy(body, Object.assign({ isDenied: () => false }, ctx))).status, 200);
+  const r = await launcher.buy(body, Object.assign({ isDenied: (pool, wallet) => pool === mint && wallet === CREATOR }, ctx));
+  assert.equal(r.status, 403);
+  assert.equal(r.body.error, 'denied');
+});

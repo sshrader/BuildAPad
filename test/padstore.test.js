@@ -162,3 +162,107 @@ test('a payout wallet is signed for, stored, and used as the fee receiver; empty
   // a malformed payout address is refused
   assert.equal(store.create(form(w, { slug: 'bad-one', payoutWallet: 'nope' }, t), ip).body.error, 'bad_payout');
 });
+
+test('pad settings are checked: wallet lists, first-buy minimum, blocked words, and defaults', () => {
+  const { normalizeSettings } = require('../padstore.js');
+  const a = wallet().address, b = wallet().address;
+  const ok = normalizeSettings({ ai: { coinMaker: true, style: 'pixel art' }, rules: { requireFirstBuy: true, minFirstBuySol: 0.1 }, access: { allow: [a, a], deny: [b] }, page: { about: 'Hello' } });
+  assert.deepEqual(ok.settings.access.allow, [a]);           // duplicates are merged
+  assert.equal(ok.settings.rules.minFirstBuySol, 0.1);
+  assert.equal(ok.settings.ai.chat, true);                    // chat is on unless the owner turns it off
+  assert.equal(normalizeSettings({}).settings.rules.requireFirstBuy, false);
+  assert.equal(normalizeSettings({ access: { deny: ['nope'] } }).error, 'bad_list');
+  assert.equal(normalizeSettings({ access: { deny: Array(101).fill(a) } }).error, 'bad_list');
+  assert.equal(normalizeSettings({ rules: { requireFirstBuy: true, minFirstBuySol: 99 } }).error, 'bad_min_buy');
+  assert.equal(normalizeSettings({ page: { about: 'a yellow Pikachu fan page' } }).error, 'blocked_name');
+});
+
+test('access: deny blocks launching and buying, a private pad limits launching to the list, the owner always passes', () => {
+  const t = 8000000;
+  const store = createPadStore({ now: () => t, logger: quiet, platformPct: 10, perIpPerHour: 100 });
+  const w = wallet(), friend = wallet().address, stranger = wallet().address, banned = wallet().address;
+  const ip = { ip: '4.4.4.4' };
+  assert.equal(store.create(form(w, { slug: 'open-pad', settings: { access: { deny: [banned] } } }, t), ip).status, 201);
+  assert.equal(store.accessFor('open-pad', stranger), '');
+  assert.equal(store.accessFor('open-pad', banned), 'denied');
+  assert.equal(store.buyBlocked('open-pad', banned), true);
+  assert.equal(store.buyBlocked('open-pad', stranger), false);
+  assert.equal(store.accessFor('open-pad', w.address), '');
+  assert.equal(store.create(form(w, { slug: 'closed-pad', settings: { access: { allow: [friend], deny: [banned] } } }, t), ip).status, 201);
+  assert.equal(store.accessFor('closed-pad', friend), '');
+  assert.equal(store.accessFor('closed-pad', stranger), 'not_listed');
+  assert.equal(store.buyBlocked('closed-pad', stranger), false);   // private limits launching, not trading
+  assert.equal(store.accessFor('closed-pad', w.address), '');
+  assert.equal(store.toPad('closed-pad').extra.private, true);
+  assert.ok(!JSON.stringify(store.toPad('closed-pad').extra).includes(friend), 'the lists are not put in the page');
+  assert.ok(!JSON.stringify(store.list()).includes(friend), 'nor in the public list');
+});
+
+test('the owner can update a pad with a signature; nobody else can; fixed fields stay fixed', () => {
+  const { updateMessageFor } = require('../padstore.js');
+  let t = 9000000;
+  const store = createPadStore({ now: () => t, logger: quiet, platformPct: 10, perIpPerHour: 100 });
+  const w = wallet(), other = wallet();
+  store.create(form(w, { slug: 'edit-me' }, t), { ip: '5.5.5.5' });
+  const upd = (who, over) => { const f = Object.assign({ slug: 'edit-me', ownerWallet: who.address, ts: t, accent: '#22c55e', tagline: 'New line', settings: { rules: { requireFirstBuy: true, minFirstBuySol: 0.2 } }, banner: png().toString('base64') }, over); f.signature = who.sign(updateMessageFor(f)); return f; };
+  const ip = { ip: '5.5.5.5' };
+  const r = store.update(upd(w), ip);
+  assert.equal(r.status, 200);
+  assert.equal(r.body.pad.accent, '#22c55e');
+  assert.equal(r.body.pad.tagline, 'New line');
+  assert.equal(r.body.pad.settings.rules.minFirstBuySol, 0.2);
+  assert.equal(r.body.pad.name, 'Neon Desk');                 // unchanged
+  assert.equal(r.body.pad.ownerPct, 15);                      // the fee share is fixed
+  assert.ok(r.body.pad.bannerUrl.startsWith('/pad-banner/edit-me.'));
+  assert.ok(store.banner('edit-me').buf.length > 100);
+  assert.equal(store.update(upd(other), ip).body.error, 'not_owner');
+  const forged = upd(w); forged.signature = other.sign(updateMessageFor(forged));
+  assert.equal(store.update(forged, ip).body.error, 'bad_signature');
+  assert.equal(store.update(upd(w, { ts: t - 3600000 }), ip).body.error, 'stale_signature');
+  assert.equal(store.update(upd(w, { slug: 'nope-nope' }), ip).status, 404);
+  const gone = store.update(upd(w, { removeBanner: true, banner: undefined }), ip);
+  assert.equal(gone.body.pad.bannerUrl, '');
+  assert.equal(store.banner('edit-me'), null);
+});
+
+test('server: the pad rules are enforced when preparing a launch', async () => {
+  const store = createPadStore({ logger: quiet, platformPct: 10 });
+  const w = wallet(), banned = wallet().address, stranger = wallet().address;
+  assert.equal(store.create(form(w, { slug: 'rules-pad', settings: { rules: { requireFirstBuy: true, minFirstBuySol: 0.1 }, access: { deny: [banned] } } }, Date.now()), { ip: '6.6.6.6' }).status, 201);
+  const seen = [];
+  const launcher = { info: () => ({ enabled: true, platformPct: 10, cluster: 'devnet' }), prepare: async (b, c) => { seen.push({ b, c }); return { status: 200, body: { ok: true } }; } };
+  const srv = createApp({ art: createArt({}), padStore: store, launcher });
+  await new Promise(r => srv.listen(0, '127.0.0.1', r));
+  const port = srv.address().port;
+  try {
+    const go = over => call(port, 'POST', '/api/launch/prepare', Object.assign({ name: 'Coin', symbol: 'COIN', creator: stranger, pad: 'rules-pad', firstBuySol: 0.2 }, over));
+    assert.equal((await go()).status, 200);
+    assert.equal(seen[0].c.pad.ownerPct, 15);
+    const low = await go({ firstBuySol: 0.05 });
+    assert.equal(low.status, 400);
+    assert.equal(JSON.parse(low.raw).error, 'first_buy_required');
+    assert.equal((await go({ firstBuySol: undefined })).status, 400);
+    const no = await go({ creator: banned });
+    assert.equal(no.status, 403);
+    assert.equal(JSON.parse(no.raw).error, 'not_allowed');
+    assert.equal(seen.length, 1);                              // the refused ones never reached the launcher
+    assert.equal((await go({ creator: w.address })).status, 200); // the owner is never blocked
+  } finally { await new Promise(r => srv.close(r)); }
+});
+
+test('server: text an owner writes (about, mascot) cannot break out of the pad page', async () => {
+  const store = createPadStore({ logger: quiet, platformPct: 10 });
+  const srv = createApp({ art: createArt({}), padStore: store });
+  await new Promise(r => srv.listen(0, '127.0.0.1', r));
+  const port = srv.address().port;
+  try {
+    const w = wallet();
+    const evil = '</script><img src=x onerror=alert(1)> <b>hi</b>';
+    const made = await call(port, 'POST', '/api/pads', form(w, { slug: 'evil-one', settings: { page: { about: evil }, ai: { mascotName: '"><svg onload=1>', mascotPersona: evil } } }, Date.now()));
+    assert.equal(made.status, 201);
+    const html = (await call(port, 'GET', '/p/evil-one')).raw.toString('utf8');
+    assert.ok(!html.includes('</script><img'), 'no raw script end from the about text');
+    assert.ok(!html.includes('<svg onload'));
+    assert.ok(!html.includes('<b>hi</b>'));
+  } finally { await new Promise(r => srv.close(r)); }
+});

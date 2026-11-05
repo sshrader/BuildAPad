@@ -35,7 +35,9 @@ a { color: inherit; }
 .brand img { border-radius: calc(var(--r-sm) - 2px); width: 30px; height: 30px; object-fit: cover; }
 .brand .mark { width: 30px; height: 30px; display: block; }
 .nav { display: flex; flex-wrap: wrap; gap: 4px 22px; }
-.top .row { flex-wrap: nowrap; }
+.top .row { flex-wrap: nowrap; gap: 8px; margin-left: auto; }
+.top { column-gap: 16px; }
+.top .nav { gap: 4px 16px; }
 @media (max-width: 560px) { .top .row { flex-wrap: wrap; } }
 .nav a { color: var(--muted); font-weight: 500; font-size: 14px; text-decoration: none; }
 .nav a:hover, .nav a[aria-current] { color: var(--text); }
@@ -334,5 +336,5 @@ label.check, .links-body label.check, .fields label.check { display: flex; flex-
 .idea{display:flex;flex-direction:column;gap:6px;padding:10px 12px;border:1px solid var(--line,#232733);border-radius:10px}
 .aipanel .row{flex-wrap:wrap}
 
-.chip-price { display: inline-flex; align-items: center; gap: 8px; padding: 4px 12px; border: 1px solid var(--line); border-radius: 999px; color: var(--text); font-size: 13px; font-weight: 600; background: var(--paper); font-variant-numeric: tabular-nums; white-space: nowrap; }
+.chip-price { display: inline-flex; align-items: center; gap: 7px; padding: 4px 10px; border: 1px solid var(--line); border-radius: 999px; color: var(--text); font-size: 13px; font-weight: 600; background: var(--paper); font-variant-numeric: tabular-nums; white-space: nowrap; }
 .chip-price i { width: 14px; height: 14px; border-radius: 50%; flex: none; }

@@ -376,7 +376,11 @@ function createApp(opts) {
       const out = () => {
         const b = launches ? launches.board(10) : { rows: [], totalCoins: 0, totalRaisedSol: 0 };
         const rows = b.rows.map(r => { const p = padStore ? padStore.get(r.slug) : null; return p ? Object.assign({ name: p.name, accent: p.accent, logoUrl: p.logoUrl, tagline: p.tagline }, r) : null; }).filter(Boolean);
-        return JSON.stringify({ pads: rows, stats: { pads: padStore ? padStore.size() : 0, coins: b.totalCoins, raisedSol: b.totalRaisedSol } });
+        const coins = (launches ? launches.topCoins(20) : []).map(c => {
+          const p = c.pad && padStore ? padStore.get(c.pad) : null;
+          return Object.assign({}, c, { padName: p ? p.name : '', padAccent: p ? p.accent : '' });
+        });
+        return JSON.stringify({ pads: rows, coins: coins, stats: { pads: padStore ? padStore.size() : 0, coins: b.totalCoins, raisedSol: b.totalRaisedSol } });
       };
       // Looking at the recent launches first keeps the raised amounts fresh (this is cached, so it is cheap).
       (launches ? launches.list('').catch(() => []) : Promise.resolve([])).then(() => send(res, 200, req.method === 'HEAD' ? '' : out(), hdr))

@@ -321,3 +321,11 @@ label.check, .links-body label.check, .fields label.check { display: flex; flex-
 .ofstats div { display: grid; gap: 2px; }
 .ofstats dt { font-size: 12.5px; color: var(--muted); }
 .ofstats dd { margin: 0; font: 600 1rem/1.2 var(--mono); font-variant-numeric: tabular-nums; }
+
+.band-head .seg { margin-left: auto; }
+.crow { grid-template-columns: 34px minmax(190px, 1.1fr) minmax(0, 1.2fr) auto; }
+.onpad { display: inline-flex; align-items: center; gap: 4px; padding: 4px 12px; border: 1px solid color-mix(in srgb, var(--pc, var(--accent)) 55%, var(--line)); border-radius: 999px; background: color-mix(in srgb, var(--pc, var(--accent)) 10%, var(--soft)); text-decoration: none; font-size: 13px; color: var(--muted); justify-self: end; max-width: 100%; }
+.onpad b { color: var(--text); font-weight: 600; overflow-wrap: anywhere; }
+.onpad:hover { border-color: var(--pc, var(--accent)); }
+.crow .mock-logo { background: var(--soft); color: var(--text); width: 40px; height: 40px; }
+@media (max-width: 760px) { .crow { grid-template-columns: 28px minmax(0, 1fr); } .onpad { grid-column: 2; justify-self: start; } }

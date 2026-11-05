@@ -81,6 +81,7 @@ function createLaunches(opts) {
           if (!e.verified) { e.verified = true; changed = true; }
           if (Number.isFinite(r.body.raisedSol)) { if (e.raisedSol !== r.body.raisedSol) changed = true; e.raisedSol = r.body.raisedSol; }
           e.migrated = Boolean(r.body.migrated);
+          if (Number.isFinite(r.body.progress)) e.progress = r.body.progress;
           const rec = e.art ? artRecord(e.art) : null;
           items.push({
             pool: e.pool, mint: e.mint, name: e.name, symbol: e.symbol, creator: e.creator, pad: e.pad || '', preset: e.preset, createdAt: e.createdAt,
@@ -194,10 +195,21 @@ function createLaunches(opts) {
     return { rows: rows.slice(0, limit || 10), totalCoins: rows.reduce((n, r) => n + r.coins, 0), totalRaisedSol: Math.round(rows.reduce((n, r) => n + r.raisedSol, 0) * 1000) / 1000 };
   }
 
+  // The best coins across every pad (and the platform's own), by SOL raised on their curves as last looked at.
+  function topCoins(limit) {
+    return entries.filter(e => e.verified && !hidden.has(e.pool))
+      .sort((a, b) => (b.raisedSol || 0) - (a.raisedSol || 0) || b.createdAt - a.createdAt)
+      .slice(0, limit || 20)
+      .map(e => {
+        const rec = e.art ? artRecord(e.art) : null;
+        return { pool: e.pool, mint: e.mint, name: e.name, symbol: e.symbol, pad: e.pad || '', raisedSol: e.raisedSol || 0, progress: Number.isFinite(e.progress) ? e.progress : 0, migrated: Boolean(e.migrated), createdAt: e.createdAt, imageUrl: rec ? '/art/' + rec.id + '.' + (rec.ext === 'jpg' ? 'jpg' : 'png') : '' };
+      });
+  }
+
   // The launch that used a given picture (the official coin), or null.
   const findByArt = id => { const e = id ? entries.find(x => x.art === id) : null; return e ? { pool: e.pool, mint: e.mint, name: e.name, symbol: e.symbol } : null; };
 
-  return { record, list, detail, setSiteVerified, padOf, board, findByArt, size: () => entries.length };
+  return { record, list, detail, setSiteVerified, padOf, board, topCoins, findByArt, size: () => entries.length };
 }
 
 module.exports = { createLaunches };

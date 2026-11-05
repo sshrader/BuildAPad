@@ -63,7 +63,14 @@
   </section>
 
   <section class="band" id="board" aria-labelledby="board-h">
-    <div class="band-head"><h2 id="board-h">Leaderboard</h2><p class="hint">Pads ranked by coins launched on them, then by SOL raised.</p></div>
+    <div class="band-head">
+      <h2 id="board-h">Leaderboard</h2>
+      <div class="seg" id="board-tabs" role="tablist" aria-label="Leaderboard view">
+        <button type="button" role="tab" id="tab-pads" data-v="pads" aria-selected="true" aria-controls="boardlist" aria-pressed="true">Pads</button>
+        <button type="button" role="tab" id="tab-coins" data-v="coins" aria-selected="false" aria-controls="coinlist" aria-pressed="false">Top coins</button>
+      </div>
+    </div>
+    <p class="hint" id="board-sub">Pads ranked by coins launched on them, then by SOL raised.</p>
     <div class="official" id="official" hidden>
       <img id="of-img" alt="" width="72" height="72">
       <div class="of-text">
@@ -79,6 +86,7 @@
       <a class="btn go" id="of-open" href="/">View the coin</a>
     </div>
     <ol class="board" id="boardlist" aria-live="polite"></ol>
+    <ol class="board" id="coinlist" aria-live="polite" hidden></ol>
     <p class="hint" id="board-note">Loading…</p>
   </section>
 

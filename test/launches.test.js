@@ -288,3 +288,23 @@ test('the official coin: found by its picture, reported by /api/founder only onc
     assert.ok(html.includes('noindex'));
   } finally { srv.closeAllConnections(); await new Promise(r => srv.close(r)); }
 });
+
+test('top coins: ranked by SOL raised across pads, with the pad each one was launched on', async () => {
+  let t = 1000000;
+  const raised = { 1: 0.5, 2: 3, 3: 1 };
+  const inspect = async address => {
+    const n = [1, 2, 3].find(k => entry(k).pool === address);
+    return n ? { status: 200, body: { address, raisedSol: raised[n], thresholdSol: 4, progress: raised[n] / 4, migrated: false, curveFull: false } } : { status: 404, body: {} };
+  };
+  const l = createLaunches({ inspect, now: () => t, logger: quiet, listTtlMs: 0 });
+  l.record(entry(1, { pad: 'alpha' })); t += 1000;
+  l.record(entry(2, { pad: 'beta' })); t += 1000;
+  l.record(entry(3, {}));
+  assert.deepEqual(l.topCoins(), []);              // nothing is confirmed until the list has looked
+  await l.list('');
+  const top = l.topCoins();
+  assert.deepEqual(top.map(c => c.symbol), ['AN2', 'AN3', 'AN1']);
+  assert.deepEqual(top.map(c => c.pad), ['beta', '', 'alpha']);
+  assert.equal(top[0].progress, 0.75);
+  assert.equal(l.topCoins(1).length, 1);
+});

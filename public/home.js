@@ -91,13 +91,55 @@
     })
     .catch(() => { /* no official coin to show */ });
 
+  // ----- Pads / Top coins tabs. Each coin names the pad it was launched on.
+  let tab = 'pads', board = null;
+  function coinRow(c, i) {
+    const li = document.createElement('li'); li.className = 'brow crow';
+    const rank = document.createElement('span'); rank.className = 'brank'; rank.textContent = String(i + 1);
+    const a = document.createElement('a'); a.className = 'bpad'; a.href = '/coin/' + encodeURIComponent(c.pool);
+    const logo = document.createElement('div'); logo.className = 'mock-logo';
+    if (c.imageUrl) {
+      const img = document.createElement('img'); img.alt = ''; img.src = c.imageUrl; img.width = 40; img.height = 40;
+      img.addEventListener('error', () => { logo.textContent = (c.name || '?').charAt(0).toUpperCase(); img.remove(); });
+      logo.appendChild(img);
+    } else logo.textContent = (c.name || '?').charAt(0).toUpperCase();
+    const nm = document.createElement('span'); nm.className = 'bname';
+    const b = document.createElement('b'); b.textContent = c.name;
+    const sm = document.createElement('small'); sm.textContent = '$' + c.symbol;
+    nm.appendChild(b); nm.appendChild(sm); a.appendChild(logo); a.appendChild(nm);
+    const nums = document.createElement('span'); nums.className = 'bnums';
+    const pct = Math.max(0, Math.min(100, Math.round((c.progress || 0) * 100)));
+    [[fmt(c.raisedSol), 'SOL raised'], [c.migrated ? 'Graduated' : pct + '%', c.migrated ? '' : 'full']].forEach(x => {
+      const d = document.createElement('span'); const v = document.createElement('b'); v.textContent = String(x[0]); d.appendChild(v); if (x[1]) d.appendChild(document.createTextNode(' ' + x[1])); nums.appendChild(d);
+    });
+    // The pad this coin was launched on (or the platform itself, for coins launched directly).
+    const on = document.createElement('a'); on.className = 'onpad';
+    on.style.setProperty('--pc', /^#[0-9a-f]{6}$/i.test(c.padAccent) ? c.padAccent : '#ff8f3d');
+    on.href = c.pad ? '/p/' + encodeURIComponent(c.pad) : '/';
+    on.appendChild(document.createTextNode('on '));
+    const pn = document.createElement('b'); pn.textContent = c.padName || (window.PAD && window.PAD.platform) || 'BuildAPad'; on.appendChild(pn);
+    li.appendChild(rank); li.appendChild(a); li.appendChild(nums); li.appendChild(on);
+    return li;
+  }
+  function showTab(v) {
+    tab = v;
+    $('boardlist').hidden = v !== 'pads'; $('coinlist').hidden = v !== 'coins';
+    document.querySelectorAll('#board-tabs button').forEach(b => { const on = b.dataset.v === v; b.setAttribute('aria-pressed', String(on)); b.setAttribute('aria-selected', String(on)); });
+    $('board-sub').textContent = v === 'pads' ? 'Pads ranked by coins launched on them, then by SOL raised.' : 'Coins ranked by SOL raised on their curves, with the pad each one launched on.';
+    const n = board ? (v === 'pads' ? (board.pads || []).length : (board.coins || []).length) : 0;
+    $('board-note').textContent = !board ? 'Loading…' : n ? '' : v === 'pads' ? 'No coins launched yet. The first pad to launch a coin takes the top spot.' : 'No coins launched yet. The first coin on the board takes the top spot.';
+  }
+  $('board-tabs').addEventListener('click', e => { const b = e.target.closest('button'); if (b) showTab(b.dataset.v); });
+
   fetch('/api/leaderboard', { headers: { Accept: 'application/json' } })
     .then(r => (r.ok ? r.json() : null))
     .then(j => {
       if (!j) throw new Error('no board');
       const box = $('boardlist'); box.textContent = '';
       (j.pads || []).forEach((p, i) => box.appendChild(row(p, i)));
-      $('board-note').textContent = (j.pads || []).length ? '' : 'No coins launched yet. The first pad to launch a coin takes the top spot.';
+      const cbox = $('coinlist'); cbox.textContent = '';
+      (j.coins || []).forEach((c, i) => cbox.appendChild(coinRow(c, i)));
+      board = j; showTab(tab);
       count($('st-pads'), j.stats.pads); count($('st-coins'), j.stats.coins); count($('st-sol'), j.stats.raisedSol);
     })
     .catch(() => { $('board-note').textContent = 'Could not load the leaderboard. Try again in a moment.'; });

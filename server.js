@@ -93,6 +93,29 @@ function createApp(opts) {
   // The official coin: once it exists on-chain that is remembered, and its numbers (curve, fees waiting) are refreshed at most
   // every 20 seconds, so the home page never causes a flood of chain reads.
   let founderDone = null, founderAsked = 0, founderStats = null;
+  // SOL price in USD, cached for a minute. Tries Coinbase first, then CoinGecko. Returns the last good price if both fail.
+  const priceFetch = opts.priceFetch || (typeof fetch === 'function' ? fetch : null);
+  let solPrice = null, solPriceTried = 0;
+  async function getSolPrice() {
+    if (!priceFetch) return null;
+    if (solPrice && Date.now() - solPrice.at < 60000) return solPrice;
+    if (Date.now() - solPriceTried < 15000) return solPrice;
+    solPriceTried = Date.now();
+    const sources = [
+      ['https://api.coinbase.com/v2/prices/SOL-USD/spot', j => j && j.data && j.data.amount],
+      ['https://api.coingecko.com/api/v3/simple/price?ids=solana&vs_currencies=usd', j => j && j.solana && j.solana.usd]
+    ];
+    for (const [u, pick] of sources) {
+      try {
+        const r = await priceFetch(u, { headers: { Accept: 'application/json' }, signal: AbortSignal.timeout(5000) });
+        if (!r.ok) continue;
+        const v = Number(pick(await r.json()));
+        if (Number.isFinite(v) && v > 0 && v < 1e6) { solPrice = { usd: v, at: Date.now() }; return solPrice; }
+      } catch (e) { /* try the next one */ }
+    }
+    return solPrice;
+  }
+
   const reportCache = new Map();
   async function founderLaunched() {
     if (!founder || !launches) return null;
@@ -602,6 +625,14 @@ function createApp(opts) {
       const meta = metadataFor(url.searchParams.get('n'), url.searchParams.get('s'), rec, baseUrlFor(req), launcher && launcher.info ? launcher.info().cluster : 'devnet');
       if (!meta) return send(res, 400, JSON.stringify({ error: 'bad_metadata' }), JSON_TYPE);
       return send(res, 200, req.method === 'HEAD' ? '' : JSON.stringify(meta), Object.assign({}, JSON_TYPE, { 'Cache-Control': 'public, max-age=3600' }));
+    }
+
+    // The SOL price for the header ticker. One lookup a minute is shared by every visitor, so the page never talks to the price site.
+    if (pathname === '/api/price') {
+      const noStore = Object.assign({}, JSON_TYPE, { 'Cache-Control': 'public, max-age=30' });
+      getSolPrice().then(p => send(res, 200, req.method === 'HEAD' ? '' : JSON.stringify({ usd: p ? p.usd : null, at: p ? p.at : null }), noStore))
+        .catch(() => send(res, 200, JSON.stringify({ usd: null, at: null }), noStore));
+      return;
     }
 
     // Health check for the host platform.

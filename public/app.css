@@ -333,3 +333,6 @@ label.check, .links-body label.check, .fields label.check { display: flex; flex-
 .ideas{display:flex;flex-direction:column;gap:8px}
 .idea{display:flex;flex-direction:column;gap:6px;padding:10px 12px;border:1px solid var(--line,#232733);border-radius:10px}
 .aipanel .row{flex-wrap:wrap}
+
+.chip-price { display: inline-flex; align-items: center; gap: 8px; padding: 4px 12px; border: 1px solid var(--line); border-radius: 999px; color: var(--text); font-size: 13px; font-weight: 600; background: var(--paper); font-variant-numeric: tabular-nums; white-space: nowrap; }
+.chip-price i { width: 14px; height: 14px; border-radius: 50%; background: linear-gradient(135deg, #9945ff, #14f195); flex: none; }

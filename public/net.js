@@ -39,4 +39,30 @@
     }).join(', ');
   };
   window.AnimalNet = net;
+
+  // SOL price chip in the header, refreshed every minute. It stays hidden if the price cannot be read.
+  function startTicker() {
+    const row = document.querySelector('.top .row');
+    if (!row) return;
+    const chip = document.createElement('span');
+    chip.className = 'chip-price'; chip.hidden = true;
+    chip.title = 'Solana price in US dollars';
+    const dot = document.createElement('i'); dot.setAttribute('aria-hidden', 'true');
+    const txt = document.createElement('span');
+    chip.appendChild(dot); chip.appendChild(txt);
+    row.insertBefore(chip, row.firstChild);
+    function pull() {
+      fetch('/api/price', { headers: { Accept: 'application/json' } })
+        .then(function (r) { return r.ok ? r.json() : null; })
+        .then(function (b) {
+          if (!b || !Number.isFinite(b.usd)) return;
+          txt.textContent = 'SOL $' + b.usd.toLocaleString('en-US', { minimumFractionDigits: 2, maximumFractionDigits: 2 });
+          chip.hidden = false;
+        })
+        .catch(function () { /* keep the last price, or stay hidden */ });
+    }
+    pull();
+    setInterval(pull, 60000);
+  }
+  if (document.readyState === 'loading') document.addEventListener('DOMContentLoaded', startTicker); else startTicker();
 })();

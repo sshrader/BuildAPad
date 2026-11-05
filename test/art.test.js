@@ -523,3 +523,20 @@ test('report phrases only the given facts and keeps the coin name as data', asyn
   assert.match(f.seen[0].body.messages[0].content, /ONLY the facts/);
   assert.doesNotMatch(f.seen[0].body.messages[1].content, /bad:/);
 });
+
+test('the price route returns the SOL price, caches it, and falls back to a second source', async () => {
+  let calls = 0;
+  const priceFetch = async url => {
+    calls++;
+    if (/coinbase/.test(url)) return { ok: false, status: 500, json: async () => ({}) };
+    return { ok: true, status: 200, json: async () => ({ solana: { usd: 89.23 } }) };
+  };
+  await withServer({ art: createArt({ logger: quiet }), priceFetch }, async base => {
+    const a = await (await fetch(base + '/api/price')).json();
+    assert.equal(a.usd, 89.23);
+    const before = calls;
+    const b = await (await fetch(base + '/api/price')).json();
+    assert.equal(b.usd, 89.23);
+    assert.equal(calls, before);
+  });
+});

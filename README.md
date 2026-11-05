@@ -1,6 +1,6 @@
 # BuildAPad
 
-Build your own Solana launchpad in a minute. Pick a name, upload a logo, choose an accent color and your cut of the creator fees. Sign once with your wallet and you get a live launchpad page at `/p/<your-name>` where anyone can launch a coin on pump.fun, and you earn from every one.
+Build your own Solana launchpad in a minute. Pick a name, upload a logo, choose an accent color, your cut of the creator fees, and which wallet receives it. Sign once with your wallet and you get a live launchpad page at `/p/<your-name>` where anyone can launch a coin on pump.fun, and you earn from every one.
 
 **Status:** runs on pump.fun. The launch, fee split, first buy and payout have been tested end to end on devnet. Devnet is the default; mainnet is refused in code until `MAINNET_ENABLED=yes`. Run `devnet/11-check-pump.mjs` before real money.
 
@@ -9,7 +9,8 @@ Build your own Solana launchpad in a minute. Pick a name, upload a logo, choose 
 1. **Build a pad (`/build`):** the owner picks a name, page address, tagline, logo (PNG or JPEG, resized in the browser), accent color, corner style, optional links, and their fee share. A live preview follows every choice. The owner's wallet signs a message (no cost) that names the page, the wallet and the share, and the server checks the signature before saving the pad.
 2. **Launch a coin (`/p/<slug>`):** a visitor enters a name, ticker, optional description and a picture, then Phantom signs the transactions the server prepares: `create_v2` (with an optional first buy in the same transaction when a lookup table is set), then the three-way fee split. If a step is declined or the tab closes, pressing Launch again continues from what is on-chain.
 3. **Fees, split three ways on-chain:** pump.fun's own fee sharing pays the coin's launcher, the pad owner and the platform. The platform share is fixed by the operator (`PLATFORM_SHARE_PCT`); the owner picks their share from 0 up to `50 - platform share`; the launcher keeps the rest, always at least half.
-4. **Send out fees:** anyone can press Send out fees on a coin page. The money goes to the wallets in that coin's split. The operator's `/admin` page lists the platform's share and sends it out.
+4. **Leaderboard (`/`):** the home page ranks pads by confirmed coins launched on them, then by SOL raised (`GET /api/leaderboard`). Raised amounts are as last looked at on-chain and refresh when the recent-launches list refreshes.
+5. **Send out fees:** anyone can press Send out fees on a coin page. The money goes to the wallets in that coin's split. The operator's `/admin` page lists the platform's share and sends it out.
 
 ## Run it
 
@@ -40,6 +41,7 @@ PLATFORM_FEE_WALLET=<public address> node server.js
 ## Pad rules
 
 - Names and page addresses are checked against a blocked list of well-known people and brands, and a reserved list (`build`, `admin`, `api`, ...). Pages are 3 to 30 letters, numbers or dashes.
+- The owner's fee share can go to a different payout wallet (a Ledger, a team wallet). The signed message names it, so it cannot be swapped afterwards.
 - Creating a pad needs a wallet signature (valid for 10 minutes). Limits: 3 pads per wallet, 5 creations per connection per hour.
 - Logos are checked by their first bytes (PNG or JPEG, up to 400 KB). SVG is refused.
 - Colors are hex only, fonts Google Fonts only, and all text is escaped, so a pad cannot add markup or script.
@@ -51,7 +53,7 @@ PLATFORM_FEE_WALLET=<public address> node server.js
 
 - Coin names and descriptions are cleaned and checked against a basic blocked list. It is not complete. `HIDE_POOLS` removes anything else by hand.
 - The three-way split is enforced for coins launched through the site's own flow. Someone who builds their own transactions can launch without it, so coin pages and `/admin` count only coins whose split is in place (`splitOk`).
-- Not built yet: selling from the page, payouts after a coin moves to PumpSwap, pad editing, a per-owner fee dashboard, IPFS storage, a security review for mainnet.
+- Not built yet: a flat launch fee to the pad owner (it changes the on-chain create transaction, so it waits for a proven devnet run), private pads, launch rules, selling from the page, payouts after a coin moves to PumpSwap, pad editing, a per-owner fee dashboard, IPFS storage, a security review for mainnet.
 
 ## Scripts
 

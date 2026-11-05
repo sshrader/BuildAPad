@@ -79,6 +79,8 @@ function createLaunches(opts) {
         const r = await inspect(e.pool);
         if (r.status === 200) {
           if (!e.verified) { e.verified = true; changed = true; }
+          if (Number.isFinite(r.body.raisedSol)) { if (e.raisedSol !== r.body.raisedSol) changed = true; e.raisedSol = r.body.raisedSol; }
+          e.migrated = Boolean(r.body.migrated);
           const rec = e.art ? artRecord(e.art) : null;
           items.push({
             pool: e.pool, mint: e.mint, name: e.name, symbol: e.symbol, creator: e.creator, pad: e.pad || '', preset: e.preset, createdAt: e.createdAt,
@@ -166,7 +168,33 @@ function createLaunches(opts) {
   // Which pad a coin was launched on ('' for none). The server uses this, never the browser, to decide the fee split.
   const padOf = pool => { const e = entries.find(x => x.pool === pool); return e ? e.pad || '' : ''; };
 
-  return { record, list, detail, setSiteVerified, padOf, size: () => entries.length };
+  // The pad leaderboard: for each pad, the coins confirmed on-chain, the SOL they have raised on their curves (as last
+  // looked at) and how many graduated, with its best coins. Needs no RPC calls of its own.
+  function board(limit) {
+    const by = new Map();
+    for (const e of entries) {
+      if (!e.pad || !e.verified || hidden.has(e.pool)) continue;
+      if (!by.has(e.pad)) by.set(e.pad, []);
+      by.get(e.pad).push(e);
+    }
+    const rows = [];
+    for (const [slug, list] of by) {
+      const coins = list.slice().sort((a, b) => (b.raisedSol || 0) - (a.raisedSol || 0));
+      rows.push({
+        slug, coins: list.length,
+        raisedSol: Math.round(list.reduce((n, e) => n + (e.raisedSol || 0), 0) * 1000) / 1000,
+        graduated: list.filter(e => e.migrated).length,
+        top: coins.slice(0, 3).map(e => {
+          const rec = e.art ? artRecord(e.art) : null;
+          return { pool: e.pool, name: e.name, symbol: e.symbol, raisedSol: e.raisedSol || 0, migrated: Boolean(e.migrated), imageUrl: rec ? '/art/' + rec.id + '.' + (rec.ext === 'jpg' ? 'jpg' : 'png') : '' };
+        })
+      });
+    }
+    rows.sort((a, b) => b.coins - a.coins || b.raisedSol - a.raisedSol || (a.slug < b.slug ? -1 : 1));
+    return { rows: rows.slice(0, limit || 10), totalCoins: rows.reduce((n, r) => n + r.coins, 0), totalRaisedSol: Math.round(rows.reduce((n, r) => n + r.raisedSol, 0) * 1000) / 1000 };
+  }
+
+  return { record, list, detail, setSiteVerified, padOf, board, size: () => entries.length };
 }
 
 module.exports = { createLaunches };

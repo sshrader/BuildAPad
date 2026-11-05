@@ -245,3 +245,21 @@ test('the creator\'s first buy is remembered and shown, and nonsense amounts are
   assert.equal((await l.detail(entry(2).pool)).body.devBuySol, 0);
   assert.equal((await l.detail(entry(3).pool)).body.devBuySol, 0);
 });
+
+test('the pad leaderboard ranks pads by confirmed coins, then SOL raised, and ignores unconfirmed or padless coins', async () => {
+  let t = 1000000;
+  const onChain = new Set([1, 2, 3, 4].map(n => entry(n).pool));
+  const l = createLaunches({ inspect: chain(onChain), now: () => t, logger: quiet, listTtlMs: 0 });
+  l.record(entry(1, { pad: 'alpha' })); t += 1000;
+  l.record(entry(2, { pad: 'beta' })); t += 1000;
+  l.record(entry(3, { pad: 'beta' })); t += 1000;
+  l.record(entry(4, {}));             t += 1000;      // no pad
+  l.record(entry(5, { pad: 'gamma' }));               // never on-chain
+  assert.deepEqual(l.board().rows, []);               // nothing is confirmed until the list has looked
+  await l.list('');
+  const b = l.board();
+  assert.deepEqual(b.rows.map(r => r.slug + ':' + r.coins), ['beta:2', 'alpha:1']);
+  assert.equal(b.rows[0].raisedSol, 0.5);
+  assert.equal(b.rows[0].top.length, 2);
+  assert.equal(b.totalCoins, 3);
+});

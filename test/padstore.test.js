@@ -142,3 +142,23 @@ test('server: build a pad over the API, then its page, logo and list are served;
     assert.equal((await call(port, 'POST', '/api/art/upload', { image: Buffer.from('<svg/>').toString('base64'), name: 'Cool', ticker: 'COOL' })).status, 400);
   } finally { await new Promise(r => srv.close(r)); }
 });
+
+test('a payout wallet is signed for, stored, and used as the fee receiver; empty means the owner', () => {
+  const t = 7000000;
+  const store = createPadStore({ now: () => t, logger: quiet, platformPct: 10, perIpPerHour: 100 });
+  const w = wallet(), cold = wallet();
+  const ip = { ip: '3.3.3.3' };
+  // default: the signing wallet
+  assert.equal(store.create(form(w, { slug: 'plain-one' }, t), ip).body.pad.payoutWallet, w.address);
+  // a chosen payout wallet
+  const r = store.create(form(w, { slug: 'cold-one', payoutWallet: cold.address }, t), ip);
+  assert.equal(r.status, 201);
+  assert.equal(r.body.pad.payoutWallet, cold.address);
+  assert.equal(store.toPad('cold-one').extra.payoutWallet, cold.address);
+  // swapping the payout address after signing breaks the signature
+  const f = form(w, { slug: 'swap-one', payoutWallet: cold.address }, t);
+  f.payoutWallet = wallet().address;
+  assert.equal(store.create(f, ip).body.error, 'bad_signature');
+  // a malformed payout address is refused
+  assert.equal(store.create(form(w, { slug: 'bad-one', payoutWallet: 'nope' }, t), ip).body.error, 'bad_payout');
+});

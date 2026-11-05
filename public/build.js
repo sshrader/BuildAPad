@@ -6,7 +6,8 @@
   const W = window.AnimalWallet;
   const PRESETS = ['#ff8f3d', '#5b8cff', '#8b5cf6', '#22c55e', '#ec4899', '#06b6d4', '#ef4444', '#e5e7eb'];
 
-  const state = { name: '', slug: '', slugEdited: false, tagline: '', accent: PRESETS[1], corners: 'round', ownerPct: 15, logo: null };
+  const B58 = /^[1-9A-HJ-NP-Za-km-z]{32,44}$/;
+  const state = { payout: '', name: '', slug: '', slugEdited: false, tagline: '', accent: PRESETS[1], corners: 'round', ownerPct: 15, logo: null };
   let cfg = { enabled: false, platformPct: 10, maxOwnerPct: 40 };
   let wallet = null;
   let busy = false;
@@ -59,6 +60,7 @@
     if (e.target.value !== state.slug) e.target.value = state.slug;
     paint();
   });
+  $('f-payout').addEventListener('input', e => { state.payout = e.target.value.trim(); });
   $('f-tag').addEventListener('input', e => { state.tagline = e.target.value.trim(); paint(); });
   $('f-pct').addEventListener('input', e => { state.ownerPct = Number(e.target.value); paint(); });
   $('f-corners').addEventListener('click', e => { const b = e.target.closest('button'); if (b) { state.corners = b.dataset.v; paint(); } });
@@ -101,6 +103,8 @@
     bad_color: 'Pick an accent color.',
     bad_fee_share: 'Your fee share is outside the allowed range.',
     bad_logo: 'Add a logo first.',
+    bad_payout: 'That payout address is not a valid Solana address. Check it, or leave it empty to use your own wallet.',
+    bad_wallet: 'The wallet address was not valid. Reconnect and try again.',
     bad_links: 'Check your links. A website needs https://, and X and Telegram take a handle like @yourpad.',
     stale_signature: 'The signature was too old. Try again.',
     bad_signature: 'The wallet signature did not match. Try again.',
@@ -114,10 +118,11 @@
     if (!state.name || state.name.length < 2) { say(WHY.bad_name, true); return; }
     if (!/^[a-z0-9][a-z0-9-]{1,28}[a-z0-9]$/.test(state.slug)) { say(WHY.bad_slug, true); return; }
     if (!state.logo) { say(WHY.bad_logo, true); return; }
+    if (state.payout && !B58.test(state.payout)) { say(WHY.bad_payout, true); return; }
     busy = true; paint();
     try {
       const ts = Date.now();
-      const msg = 'BuildAPad: create the launchpad "' + state.slug + '" owned by ' + wallet + ' with a ' + state.ownerPct + '% fee share. Time: ' + ts;
+      const msg = 'BuildAPad: create the launchpad "' + state.slug + '" owned by ' + wallet + ' with a ' + state.ownerPct + '% fee share paid to ' + (state.payout || wallet) + '. Time: ' + ts;
       say('Approve the signature in your wallet. It does not spend anything.');
       const signature = await W.signMessage(msg);
       say('Building your pad…');
@@ -125,7 +130,7 @@
       [['website', 'f-web'], ['twitter', 'f-x'], ['telegram', 'f-tg']].forEach(p => { const v = $(p[1]).value.trim(); if (v) links[p[0]] = v; });
       const res = await fetch('/api/pads', {
         method: 'POST', headers: { 'Content-Type': 'application/json' },
-        body: JSON.stringify({ slug: state.slug, name: state.name, tagline: state.tagline, accent: state.accent, corners: state.corners, ownerPct: state.ownerPct, ownerWallet: wallet, links: links, logo: state.logo.base64, ts: ts, signature: signature })
+        body: JSON.stringify({ slug: state.slug, name: state.name, tagline: state.tagline, accent: state.accent, corners: state.corners, ownerPct: state.ownerPct, ownerWallet: wallet, payoutWallet: state.payout || undefined, links: links, logo: state.logo.base64, ts: ts, signature: signature })
       });
       const body = await res.json().catch(() => null);
       if (!res.ok || !body || !body.pad) { say(WHY[body && body.error] || 'Could not build the pad. Try again.', true); busy = false; paint(); return; }

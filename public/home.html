@@ -8,7 +8,7 @@
 <meta name="theme-color" content="#0a0b0e">
 <link rel="preconnect" href="https://fonts.googleapis.com">
 <link rel="preconnect" href="https://fonts.gstatic.com" crossorigin>
-<link rel="stylesheet" href="https://fonts.googleapis.com/css2?family=Bricolage+Grotesque:opsz,wght@12..96,500..800&family=Inter:wght@400..700&family=JetBrains+Mono:wght@400..600&display=swap">
+<link rel="stylesheet" href="https://fonts.googleapis.com/css2?family=Chakra+Petch:wght@500;600;700&family=Inter:wght@400..700&family=JetBrains+Mono:wght@400..600&display=swap">
 <link rel="icon" href="/icon.svg" type="image/svg+xml">
 <meta property="og:title" content="{{name}}: build your own launchpad">
 <meta property="og:description" content="Pick a name, a logo and your cut of the fees. Get a live Solana launchpad in a minute.">
@@ -20,7 +20,7 @@
 <main class="wrap">
   <header class="top">
     <a class="brand" href="/"><img src="/icon.svg" alt="" width="30" height="30">{{name}}</a>
-    <nav class="nav" aria-label="Sections"><a href="#pads">Pads</a><a href="#how">How it works</a><a href="#fees">Fees</a><a href="#faq">FAQ</a></nav>
+    <nav class="nav" aria-label="Sections"><a href="#board">Leaderboard</a><a href="#pads">Pads</a><a href="#how">How it works</a><a href="#fees">Fees</a><a href="#faq">FAQ</a></nav>
     <div class="row">
       <span class="chip-net" data-net-only="devnet">Devnet · test coins only</span>
       <span class="chip-net live" data-net-only="mainnet-beta" hidden>Live · real SOL</span>
@@ -31,35 +31,45 @@
   <section class="hero" aria-labelledby="h1">
     <div class="hero-text">
       <h1 id="h1">Build your own launchpad.</h1>
-      <p class="lede">Choose a name, a logo and your cut of the fees. You get a live Solana launchpad page where anyone can launch a coin, and you earn from every one.</p>
+      <p class="lede">Pick a name, a logo and your cut of the fees. Get a live Solana page where anyone can launch a coin, and earn from every one.</p>
       <div class="row">
         <a class="btn go big" href="/build">Build a pad</a>
-        <a class="btn big" href="#pads">See pads built here</a>
+        <a class="btn big" href="#board">See the leaderboard</a>
       </div>
+      <dl class="stats" aria-label="Live totals">
+        <div><dt>Pads</dt><dd id="st-pads">0</dd></div>
+        <div><dt>Coins launched</dt><dd id="st-coins">0</dd></div>
+        <div><dt>SOL raised</dt><dd id="st-sol">0</dd></div>
+      </dl>
     </div>
     <div class="bp" aria-hidden="true">
-      <span class="bp-dim top">yoursite.xyz/p/northwind</span>
-      <span class="bp-dim side">your name, logo, colors</span>
-      <div class="mock" style="--accent:#5b8cff;--on-accent:#ffffff">
-        <div class="mock-bar"><i></i><i></i><i></i><span>/p/northwind</span></div>
+      <div class="glow" id="glow"></div>
+      <div class="mock" id="mock" style="--accent:#5b8cff;--on-accent:#ffffff">
+        <div class="mock-bar"><i></i><i></i><i></i><span id="mock-url">/p/northwind</span></div>
         <div class="mock-body">
           <div class="mock-head">
-            <div class="mock-logo">N</div>
-            <div><div class="mock-name">Northwind</div><div class="mock-tag">Fresh coins, fair fees.</div></div>
+            <div class="mock-logo" id="mock-logo">N</div>
+            <div><div class="mock-name" id="mock-name">Northwind</div><div class="mock-tag" id="mock-tag">Fresh coins, fair fees.</div></div>
           </div>
           <div class="mock-grid"><div class="mock-field">Coin name</div><div class="mock-field">Ticker</div></div>
           <div class="mock-btn">Launch coin</div>
           <div class="mock-split">
-            <div class="feebar"><i class="f-launcher" style="width:70%"></i><i class="f-owner" style="width:20%"></i><i class="f-platform" style="width:10%"></i></div>
-            <div class="feekey"><span class="k-launcher">Launcher <b>70%</b></span><span class="k-owner">You <b>20%</b></span><span class="k-platform">{{name}} <b>10%</b></span></div>
+            <div class="feebar"><i class="f-launcher" id="mk-l" style="width:70%"></i><i class="f-owner" id="mk-o" style="width:20%"></i><i class="f-platform" style="width:10%"></i></div>
+            <div class="feekey"><span class="k-launcher">Launcher <b id="mk-lt">70%</b></span><span class="k-owner">Owner <b id="mk-ot">20%</b></span><span class="k-platform">{{name}} <b>10%</b></span></div>
           </div>
         </div>
       </div>
     </div>
   </section>
 
+  <section class="band" id="board" aria-labelledby="board-h">
+    <div class="band-head"><h2 id="board-h">Leaderboard</h2><p class="hint">Pads ranked by coins launched on them, then by SOL raised.</p></div>
+    <ol class="board" id="boardlist" aria-live="polite"></ol>
+    <p class="hint" id="board-note">Loading…</p>
+  </section>
+
   <section class="band" id="pads" aria-labelledby="pads-h">
-    <h2 id="pads-h">Pads built here</h2>
+    <h2 id="pads-h">Newest pads</h2>
     <div class="padcards" id="padcards" aria-live="polite"></div>
     <p class="hint" id="pads-note">Loading…</p>
   </section>

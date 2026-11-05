@@ -21,7 +21,8 @@ const clean = (v, max) => (typeof v === 'string' ? v.replace(/[\p{Cc}\p{Cf}\p{Zl
 // The exact text the owner signs. It names the pad, the wallet and the fee share, so a signature cannot be reused for
 // anything else.
 function messageFor(f) {
-  return 'BuildAPad: create the launchpad "' + f.slug + '" owned by ' + f.ownerWallet + ' with a ' + f.ownerPct + '% fee share. Time: ' + f.ts;
+  const payout = f.payoutWallet || f.ownerWallet;
+  return 'BuildAPad: create the launchpad "' + f.slug + '" owned by ' + f.ownerWallet + ' with a ' + f.ownerPct + '% fee share paid to ' + payout + '. Time: ' + f.ts;
 }
 
 // Black or white text, whichever reads better on the accent colour.
@@ -70,7 +71,7 @@ function createPadStore(opts) {
 
   const publicView = e => ({
     slug: e.slug, name: e.name, tagline: e.tagline, accent: e.accent, corners: e.corners,
-    ownerWallet: e.ownerWallet, ownerPct: e.ownerPct, links: e.links || {}, createdAt: e.createdAt,
+    ownerWallet: e.ownerWallet, payoutWallet: e.payoutWallet || e.ownerWallet, ownerPct: e.ownerPct, links: e.links || {}, createdAt: e.createdAt,
     logoUrl: '/pad-logo/' + e.slug + '.' + e.logoExt
   });
 
@@ -92,6 +93,8 @@ function createPadStore(opts) {
     const ownerPct = b.ownerPct;
     if (!Number.isInteger(ownerPct) || ownerPct < 0 || ownerPct > maxOwnerPct) return { status: 400, body: { error: 'bad_fee_share', max: maxOwnerPct } };
     if (typeof b.ownerWallet !== 'string' || !B58.test(b.ownerWallet)) return { status: 400, body: { error: 'bad_wallet' } };
+    const payoutWallet = b.payoutWallet === undefined || b.payoutWallet === '' ? b.ownerWallet : b.payoutWallet;
+    if (typeof payoutWallet !== 'string' || !B58.test(payoutWallet)) return { status: 400, body: { error: 'bad_payout' } };
     const links = normalizeLinks(b.links === undefined ? {} : b.links);
     if (links === null) return { status: 400, body: { error: 'bad_links' } };
 
@@ -106,13 +109,13 @@ function createPadStore(opts) {
     // The signature proves the wallet's owner asked for exactly this pad, recently.
     const ts = b.ts;
     if (!Number.isFinite(ts) || Math.abs(now() - ts) > SIGNATURE_WINDOW_MS) return { status: 400, body: { error: 'stale_signature' } };
-    if (!verifySignature(b.ownerWallet, messageFor({ slug, ownerWallet: b.ownerWallet, ownerPct, ts }), b.signature)) return { status: 401, body: { error: 'bad_signature' } };
+    if (!verifySignature(b.ownerWallet, messageFor({ slug, ownerWallet: b.ownerWallet, payoutWallet, ownerPct, ts }), b.signature)) return { status: 401, body: { error: 'bad_signature' } };
 
     if (!allowed((ctx && ctx.ip) || 'unknown')) return { status: 429, body: { error: 'rate_limited' } };
     if (entries.some(e => e.slug === slug)) return { status: 409, body: { error: 'slug_taken' } };
     if (entries.filter(e => e.ownerWallet === b.ownerWallet).length >= MAX_PER_WALLET) return { status: 409, body: { error: 'too_many_pads' } };
 
-    const entry = { slug, name, tagline, accent, corners, ownerWallet: b.ownerWallet, ownerPct, links, logoExt: logo.ext === 'jpg' ? 'jpg' : 'png', createdAt: now() };
+    const entry = { slug, name, tagline, accent, corners, ownerWallet: b.ownerWallet, payoutWallet, ownerPct, links, logoExt: logo.ext === 'jpg' ? 'jpg' : 'png', createdAt: now() };
     if (logoDir) {
       try { fs.mkdirSync(logoDir, { recursive: true }); fs.writeFileSync(path.join(logoDir, slug + '.' + entry.logoExt), logo.buf); }
       catch (err) { logger.error('Pad logo save failed: ' + (err && err.message)); return { status: 500, body: { error: 'server_error' } }; }
@@ -143,7 +146,7 @@ function createPadStore(opts) {
       id: e.slug, name: e.name, tagline: e.tagline || 'Launch a coin.', description: (e.tagline || 'Launch a coin') + ' on ' + e.name + ', a Solana launchpad built with BuildAPad.',
       theme: { dark: { accent: e.accent, 'on-accent': onAccent(e.accent), edge: e.accent }, radius: e.corners === 'sharp' ? 2 : 14 }
     }, 'pad ' + e.slug);
-    pad.extra = { slug: e.slug, ownerWallet: e.ownerWallet, ownerPct: e.ownerPct, logoUrl: '/pad-logo/' + e.slug + '.' + e.logoExt, links: e.links || {} };
+    pad.extra = { slug: e.slug, ownerWallet: e.ownerWallet, payoutWallet: e.payoutWallet || e.ownerWallet, ownerPct: e.ownerPct, logoUrl: '/pad-logo/' + e.slug + '.' + e.logoExt, links: e.links || {} };
     return pad;
   }
 

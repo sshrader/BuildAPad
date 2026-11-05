@@ -266,7 +266,7 @@ function createApp(opts) {
           padSlug = action === 'prepare' ? String(body.pad || '') : (launches ? launches.padOf(String(body.mint || '')) : '');
           const rec = padSlug ? padStore.get(padSlug) : null;
           if (action === 'prepare' && padSlug && !rec) return send(res, 400, JSON.stringify({ error: 'bad_pad' }), noStore);
-          if (rec) padCtx = { owner: rec.ownerWallet, ownerPct: rec.ownerPct };
+          if (rec) padCtx = { owner: rec.payoutWallet || rec.ownerWallet, ownerPct: rec.ownerPct };
         }
         return launcher[action](body, { ip: clientIp(req), baseUrl: baseUrlFor(req), founder: founder, pad: padCtx, hasArt: id => Boolean(art.get(id)) })
           .then(r => {
@@ -296,6 +296,18 @@ function createApp(opts) {
     }
     if (pathname === '/api/pads') {
       return send(res, 200, JSON.stringify({ pads: padStore ? padStore.list(12) : [] }), Object.assign({}, JSON_TYPE, { 'Cache-Control': 'public, max-age=15' }));
+    }
+    if (pathname === '/api/leaderboard') {
+      const hdr = Object.assign({}, JSON_TYPE, { 'Cache-Control': 'public, max-age=15' });
+      const out = () => {
+        const b = launches ? launches.board(10) : { rows: [], totalCoins: 0, totalRaisedSol: 0 };
+        const rows = b.rows.map(r => { const p = padStore ? padStore.get(r.slug) : null; return p ? Object.assign({ name: p.name, accent: p.accent, logoUrl: p.logoUrl, tagline: p.tagline }, r) : null; }).filter(Boolean);
+        return JSON.stringify({ pads: rows, stats: { pads: padStore ? padStore.size() : 0, coins: b.totalCoins, raisedSol: b.totalRaisedSol } });
+      };
+      // Looking at the recent launches first keeps the raised amounts fresh (this is cached, so it is cheap).
+      (launches ? launches.list('').catch(() => []) : Promise.resolve([])).then(() => send(res, 200, req.method === 'HEAD' ? '' : out(), hdr))
+        .catch(() => send(res, 500, JSON.stringify({ error: 'server_error' }), Object.assign({}, JSON_TYPE, { 'Cache-Control': 'no-store' })));
+      return;
     }
     const pm = /^\/api\/pads\/([a-z0-9-]{2,30})$/.exec(pathname);
     if (pm) {

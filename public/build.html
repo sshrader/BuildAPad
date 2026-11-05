@@ -8,7 +8,7 @@
 <meta name="theme-color" content="#0a0b0e">
 <link rel="preconnect" href="https://fonts.googleapis.com">
 <link rel="preconnect" href="https://fonts.gstatic.com" crossorigin>
-<link rel="stylesheet" href="https://fonts.googleapis.com/css2?family=Bricolage+Grotesque:opsz,wght@12..96,500..800&family=Inter:wght@400..700&family=JetBrains+Mono:wght@400..600&display=swap">
+<link rel="stylesheet" href="https://fonts.googleapis.com/css2?family=Chakra+Petch:wght@500;600;700&family=Inter:wght@400..700&family=JetBrains+Mono:wght@400..600&display=swap">
 <link rel="icon" href="/icon.svg" type="image/svg+xml">
 <link rel="stylesheet" href="/app.css">
 </head>
@@ -75,7 +75,8 @@
           <div class="feebar" aria-hidden="true"><i class="f-launcher" id="b-l"></i><i class="f-owner" id="b-o"></i><i class="f-platform" id="b-p"></i></div>
           <div class="feekey"><span class="k-launcher">Coin launcher <b id="k-l">75%</b></span><span class="k-owner">You <b id="k-o">15%</b></span><span class="k-platform">{{name}} <b id="k-p">10%</b></span></div>
         </div>
-        <p class="hint">Paid by pump.fun's fee sharing, on-chain, to the wallet you sign with. The launcher always keeps at least half.</p>
+        <label>Send my share to <input type="text" id="f-payout" maxlength="44" placeholder="Leave empty to use the wallet you sign with" spellcheck="false" autocomplete="off"></label>
+        <p class="hint">Paid by pump.fun's fee sharing, on-chain. Paste any Solana address, such as a Ledger or a team wallet. It is fixed once the pad is built. The launcher always keeps at least half.</p>
       </section>
 
       <details class="group links" id="f-links">

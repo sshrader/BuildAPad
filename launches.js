@@ -210,9 +210,11 @@ function createLaunches(opts) {
   // Every launch that used the picture, newest first. A coin can be prepared more than once (a declined wallet prompt leaves
   // a record that never reaches the chain), so the caller checks which ones really exist.
   const findAllByArt = id => (id ? entries.filter(x => x.art === id).sort((a, b) => b.createdAt - a.createdAt).map(e => ({ pool: e.pool, mint: e.mint, name: e.name, symbol: e.symbol })) : []);
+  // Fallback: launches made outside any pad that carry the official coin's ticker (newest first).
+  const findAllBySymbol = sym => (sym ? entries.filter(x => x.symbol === sym && !x.pad).sort((a, b) => b.createdAt - a.createdAt).map(e => ({ pool: e.pool, mint: e.mint, name: e.name, symbol: e.symbol })) : []);
   const findByArt = id => findAllByArt(id)[0] || null;
 
-  return { record, list, detail, setSiteVerified, padOf, board, topCoins, findByArt, findAllByArt, size: () => entries.length };
+  return { record, list, detail, setSiteVerified, padOf, board, topCoins, findByArt, findAllByArt, findAllBySymbol, size: () => entries.length };
 }
 
 module.exports = { createLaunches };

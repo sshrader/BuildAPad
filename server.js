@@ -99,7 +99,7 @@ function createApp(opts) {
       if (Date.now() - founderAsked < 20000) return null;
       founderAsked = Date.now();
       // The newest launch of the picture that really exists on-chain is the official coin.
-      for (const e of launches.findAllByArt(founder.id).slice(0, 5)) {
+      for (const e of launches.findAllByArt(founder.id).concat(launches.findAllBySymbol(founder.ticker)).slice(0, 8)) {
         const d = await launches.detail(e.pool);
         if (d.status === 200) {
           founderDone = { pool: e.pool, mint: e.mint, name: e.name, symbol: e.symbol };

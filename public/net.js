@@ -24,5 +24,7 @@
     .then(function (r) { return r.ok ? r.json() : {}; })
     .then(function (c) { net.apply(c && c.cluster); return net; })
     .catch(function () { net.apply('devnet'); return net; });
+  // The server puts the pad's name and wording in window.PAD. This is only a fallback for a bare static page.
+  if (!window.PAD) window.PAD = { id: 'hatchpad', name: 'HatchPad', subject: 'animal', aSubject: 'an animal', subjects: 'animals', ideas: { moods: null, things: null, extras: null } };
   window.AnimalNet = net;
 })();

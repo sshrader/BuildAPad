@@ -3,7 +3,7 @@
 <head>
 <meta charset="utf-8">
 <meta name="viewport" content="width=device-width, initial-scale=1, viewport-fit=cover">
-<title>Fees · HatchPad</title>
+<title>Fees · {{name}}</title>
 <meta name="robots" content="noindex">
 <script>try { if (localStorage.getItem("animalpad-theme") === "light") document.documentElement.dataset.theme = "light"; } catch (e) {}</script>
 <link rel="preconnect" href="https://fonts.googleapis.com">
@@ -24,7 +24,7 @@
 <body>
 <main class="wrap">
   <header class="top">
-    <a class="brand" href="/" style="color:inherit;text-decoration:none">HatchPad</a>
+    <a class="brand" href="/" style="color:inherit;text-decoration:none">{{name}}</a>
     <div class="row">
       <span class="chip-net" data-net-only="devnet">Devnet · test coins only</span>
       <span class="chip-net live" data-net-only="mainnet-beta" hidden>Live · real SOL</span>
@@ -34,7 +34,7 @@
 
   <section class="panel stack2" aria-labelledby="fees-h">
     <h2 id="fees-h">Platform fees</h2>
-    <p class="hint">HatchPad's share of the creator fees waiting on every coin. Sending them out also pays the launcher their share; the payout always goes to the two wallets in the coin's fee split. This page holds no keys: it asks the server to prepare each payout and your wallet signs it and pays the network fee.</p>
+    <p class="hint">{{name}}'s share of the creator fees waiting on every coin. Sending them out also pays the launcher their share; the payout always goes to the two wallets in the coin's fee split. This page holds no keys: it asks the server to prepare each payout and your wallet signs it and pays the network fee.</p>
     <div class="row">
       <button type="button" class="btn go" id="connect">Connect wallet</button>
       <span class="dl-status" id="who" role="status"></span>

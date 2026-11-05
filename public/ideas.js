@@ -6,9 +6,12 @@
 })(typeof self !== 'undefined' ? self : this, function () {
   'use strict';
 
-  const MOODS = ['tired', 'angry', 'sleepy', 'smug', 'nervous', 'heroic', 'dramatic', 'confused', 'fancy', 'grumpy', 'cheerful', 'suspicious', 'sad', 'proud', 'chaotic', 'chill'];
-  const ANIMALS = ['heron', 'capybara', 'red panda', 'frog', 'axolotl', 'otter', 'pigeon', 'hedgehog', 'llama', 'octopus', 'sloth', 'penguin', 'crab', 'goat', 'raccoon', 'moth', 'walrus', 'flamingo', 'hamster', 'narwhal', 'bat', 'snail', 'duck', 'ferret', 'owl', 'tortoise', 'seal', 'badger'];
-  const EXTRAS = ['wearing a tiny crown', 'in sunglasses', 'on a skateboard', 'eating a donut', 'holding an umbrella', 'riding a bike', 'wearing a wizard hat', 'drinking coffee', 'with a cape', 'in a space helmet', 'carrying a tiny briefcase', 'playing guitar', 'in a raincoat', 'wearing a scarf', 'eating a slice of pizza', 'holding a balloon', 'wearing headphones', 'in a bathtub'];
+  const P = (typeof window !== 'undefined' && window.PAD && window.PAD.ideas) || {};
+  const MOODS_D = ['tired', 'angry', 'sleepy', 'smug', 'nervous', 'heroic', 'dramatic', 'confused', 'fancy', 'grumpy', 'cheerful', 'suspicious', 'sad', 'proud', 'chaotic', 'chill'];
+  const ANIMALS_D = ['heron', 'capybara', 'red panda', 'frog', 'axolotl', 'otter', 'pigeon', 'hedgehog', 'llama', 'octopus', 'sloth', 'penguin', 'crab', 'goat', 'raccoon', 'moth', 'walrus', 'flamingo', 'hamster', 'narwhal', 'bat', 'snail', 'duck', 'ferret', 'owl', 'tortoise', 'seal', 'badger'];
+  const EXTRAS_D = ['wearing a tiny crown', 'in sunglasses', 'on a skateboard', 'eating a donut', 'holding an umbrella', 'riding a bike', 'wearing a wizard hat', 'drinking coffee', 'with a cape', 'in a space helmet', 'carrying a tiny briefcase', 'playing guitar', 'in a raincoat', 'wearing a scarf', 'eating a slice of pizza', 'holding a balloon', 'wearing headphones', 'in a bathtub'];
+
+  const MOODS = P.moods || MOODS_D, ANIMALS = P.things || ANIMALS_D, EXTRAS = P.extras || EXTRAS_D;
 
   const pick = (list, rand) => list[Math.floor(rand() * list.length)];
   const article = word => (/^[aeiou]/i.test(word) ? 'an' : 'a');

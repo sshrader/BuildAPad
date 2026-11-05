@@ -108,7 +108,7 @@
       list.forEach(c => box.appendChild(card(c)));
       lastList = list;
       drawCurve(list);
-      $('feed-note').textContent = list.length ? '' : 'No launches yet. Draw an animal above and be the first.';
+      $('feed-note').textContent = list.length ? '' : 'No launches yet. Draw ' + window.PAD.aSubject + ' above and be the first.';
     } catch (err) {
       $('feed-note').textContent = 'Could not load the latest launches. Try again in a moment.';
     }
@@ -125,7 +125,7 @@
     .then(info => {
       const t = info && info.split;
       if (!t || !Number.isFinite(t.creatorPct) || !Number.isFinite(t.platformPct)) return;
-      $('fee-note-how').textContent = 'Every trade pays a creator fee. ' + t.creatorPct + '% of it goes to the wallet that launched the coin and ' + t.platformPct + '% to HatchPad. Anyone can send the fees out; they always go to those two wallets.';
+      $('fee-note-how').textContent = 'Every trade pays a creator fee. ' + t.creatorPct + '% of it goes to the wallet that launched the coin and ' + t.platformPct + '% to ' + window.PAD.name + '. Anyone can send the fees out; they always go to those two wallets.';
     })
     .catch(() => { /* the generic sentence stays */ });
 })();

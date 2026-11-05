@@ -38,6 +38,7 @@ Without a valid key and settings the page says the studio is off. `/healthz` and
 | `HIDE_POOLS` | Optional. Comma-separated pool addresses to hide from the public "Recently launched" list. |
 | `LAUNCH_RPC_URL` | RPC address. Devnet defaults to the public one. Mainnet requires a dedicated paid RPC (keep it in Railway Variables). |
 | `LAUNCH_CLUSTER` | `devnet` (default) or `mainnet-beta`. |
+| `PAD` | Which `pads/<name>.json` look and wording to use. Default `hatchpad`. |
 | `PLATFORM_FEE_WALLET` | Public address that receives HatchPad's share of each coin's creator fees. Required for launching. Use a fresh wallet or a Ledger. |
 | `PLATFORM_SHARE_PCT` | HatchPad's share of the creator fees, a whole number from 1 to 50. Default 20 (the launcher keeps 80). It is written on-chain at launch and cannot be changed for that coin afterwards. |
 | `LAUNCH_LOOKUP_TABLE` | Address of the frozen lookup table made by `devnet/12-make-lookup-table.mjs`. With it, creating the coin and the creator's first buy are one transaction, so nobody can buy first. Without it (or if the table is missing or not frozen) launches use separate steps. |
@@ -45,6 +46,34 @@ Without a valid key and settings the page says the studio is off. `/healthz` and
 | `MAINNET_ENABLED` | Must be `yes` for `LAUNCH_CLUSTER=mainnet-beta`. Without it the server refuses to start. |
 | `FOUNDER_WALLET` | Public address of the wallet allowed to launch the founder coin (the HatchPad logo, `founder/logo.png`, no AI). Open `/?founder=1` to stage it. Nobody else can launch it. Optional `FOUNDER_NAME` (default HatchPad), `FOUNDER_SYMBOL` (HATCH), `FOUNDER_DESCRIPTION`. |
 | `PUBLIC_URL` | This site's address, if it can't be worked out from the request. |
+
+## Pads: make your own launchpad look
+
+One copy of this code can run any number of launchpads. Each one is a settings file in `pads/`, and the `PAD` setting says which file a deployment uses (default `hatchpad`). The backend (launching, fee split, payouts, admin) is the same for every pad.
+
+To make a new one:
+1. Copy `pads/robots.json` to `pads/<your-id>.json` and change `"id"` to match the file name (lowercase letters, digits, dashes).
+2. Edit the file (see below).
+3. Deploy it as its own Railway service with `PAD=<your-id>`, its own volume, domain and `PLATFORM_FEE_WALLET`.
+
+What a pad file can set (anything left out falls back to HatchPad's wording):
+
+| Setting | What it does |
+| --- | --- |
+| `name` | The brand name shown on every page and in messages. |
+| `subject`, `subjects` | What people describe ("animal", "robot"), singular and plural. Used in prompts and messages. |
+| `tagline`, `description`, `heroTitle`, `heroLede` | Page title text, search/share description and the top of the home page. |
+| `promptLabel`, `promptPlaceholder`, `emptyText` | The text around the description box. |
+| `aboutDevnet`, `aboutMainnet` | The sentence after the name in the About section. |
+| `persona`, `imageStyle` | How the AI describes its mascot in chat, and the start of the picture prompt. The safety wording (an original character, nothing existing) always stays. |
+| `ideas` | `moods`, `things`, `extras`: word lists for the example buttons. |
+| `theme` | `dark` and `light` colours (hex only: ground, paper, soft, text, muted, edge, line, accent, on-accent, pop, ok, bad), `fontDisplay`, `fontBody` and a Google Fonts `fontsUrl`. |
+| `fees` | `wallet` and `platformSharePct` (1 to 50) as defaults. The `PLATFORM_FEE_WALLET` and `PLATFORM_SHARE_PCT` settings win when set. |
+| `founderName`, `founderSymbol`, `founderDescription` | Text for the founder coin. |
+
+Pictures: put files named `icon.svg`, `mascot.svg` or `banner.png` in `pads/<id>/assets/` to replace the stock ones, and `founder-logo.png` there for the founder coin. The stock `founder/logo.png` is HatchPad's own logo and is only used by the `hatchpad` pad.
+
+A mistake in a pad file stops the server at start with a message that names the file and the setting, for example `theme.dark.accent must be a hex colour`. Pad files cannot add markup or script: text is escaped, colours must be hex, and fonts must come from Google Fonts.
 
 ## Guardrails
 

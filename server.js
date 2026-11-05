@@ -1,6 +1,6 @@
 'use strict';
 
-// Static server plus the animal studio and devnet launch API for HatchPad.
+// Static server plus the picture studio and launch API for a pump.fun launchpad. Its look and wording come from pads/<PAD>.json.
 // Railway sets PORT; locally it falls back to 3000.
 const http = require('http');
 const fs = require('fs');
@@ -10,6 +10,7 @@ const { createLaunches } = require('./launches');
 const { createActions } = require('./actions');
 const { createVerifier } = require('./verify');
 const { createArt, ID_RE, normalizeLinks, blockedWord } = require('./art');
+const pads = require('./pads');
 
 const PUBLIC_DIR = path.join(__dirname, 'public');
 
@@ -72,6 +73,7 @@ function createApp(opts) {
   const launches = opts.launches || null;
   const launcher = opts.launcher || null;
   const founder = opts.founder || null; // { id, wallet, name, ticker, description }
+  const pad = opts.pad || pads.load('hatchpad');
   const actions = createActions({ launches, launcher, cluster: launcher && launcher.info ? launcher.info().cluster : 'devnet' });
   const verifier = opts.verifier || createVerifier({});
   // Website checks fetch other people's sites, so they are limited per visitor and per coin.
@@ -319,11 +321,21 @@ function createApp(opts) {
       return send(res, 403, 'Forbidden', TEXT_TYPE);
     }
 
-    fs.readFile(file, (err, data) => {
+    // A pad may replace a stock file (icon.svg, mascot.svg, banner.png...) by putting one of the same name in
+    // pads/<id>/assets/. Only plain file names in that folder are looked up.
+    let source = file;
+    const plain = pathname.slice(1);
+    if (pad.assetsDir && /^[A-Za-z0-9._-]+$/.test(plain)) {
+      const mine = path.join(pad.assetsDir, plain);
+      try { if (fs.statSync(mine).isFile()) source = mine; } catch (e) { /* no override, use the stock file */ }
+    }
+    fs.readFile(source, (err, data) => {
       if (err) {
         return send(res, 404, 'Not found', TEXT_TYPE);
       }
-      const type = TYPES[path.extname(file).toLowerCase()] || 'application/octet-stream';
+      const ext = path.extname(file).toLowerCase();
+      const type = TYPES[ext] || 'application/octet-stream';
+      if (ext === '.html') data = Buffer.from(pads.applyToHtml(data.toString('utf8'), pad, { origin: baseUrlFor(req) }), 'utf8');
       send(res, 200, req.method === 'HEAD' ? '' : data, { 'Content-Type': type, 'Cache-Control': 'no-cache' });
     });
   });
@@ -342,7 +354,9 @@ if (require.main === module) {
   // Anything else uses OpenAI (needs OPENAI_API_KEY). IMAGE_MODEL and TEXT_MODEL override the defaults.
   // Settings pasted into a host's form often carry stray spaces, line breaks or quotes; strip them.
   const cloudflare = env('IMAGE_PROVIDER').toLowerCase() === 'cloudflare';
+  const pad = pads.load(env('PAD') || 'hatchpad');
   const art = createArt({
+    subject: pad.subject, persona: pad.persona, imageStyle: pad.imageStyle,
     dir: artDir,
     provider: cloudflare ? 'cloudflare' : 'openai',
     apiKey: cloudflare ? env('CLOUDFLARE_API_TOKEN') : env('OPENAI_API_KEY'),
@@ -356,8 +370,8 @@ if (require.main === module) {
   const launcher = createLauncher({
     cluster,
     allowMainnet: env('MAINNET_ENABLED') === 'yes',
-    platformWallet: env('PLATFORM_FEE_WALLET'),
-    platformSharePct: env('PLATFORM_SHARE_PCT') || undefined,
+    platformWallet: env('PLATFORM_FEE_WALLET') || pad.fees.wallet,
+    platformSharePct: env('PLATFORM_SHARE_PCT') || pad.fees.platformSharePct || undefined,
     lookupTable: env('LAUNCH_LOOKUP_TABLE') || undefined,
     priorityMicroLamports: env('PRIORITY_FEE_MICROLAMPORTS') === '' ? undefined : Number(env('PRIORITY_FEE_MICROLAMPORTS')),
     rpcUrl: process.env.LAUNCH_RPC_URL || undefined
@@ -382,16 +396,18 @@ if (require.main === module) {
   // The founder coin: a ready-made picture (founder/logo.png) that only FOUNDER_WALLET can launch.
   let founder = null;
   const founderWallet = env('FOUNDER_WALLET');
-  const founderFile = path.join(__dirname, 'founder', 'logo.png');
-  if (founderWallet && /^[1-9A-HJ-NP-Za-km-z]{32,44}$/.test(founderWallet) && fs.existsSync(founderFile)) {
-    const text = { name: env('FOUNDER_NAME') || 'HatchPad', ticker: (env('FOUNDER_SYMBOL') || 'HATCH').toUpperCase(), description: env('FOUNDER_DESCRIPTION') || 'The first coin hatched on HatchPad.' };
+  const padLogo = path.join(pad.assetsDir, 'founder-logo.png'); // a pad can bring its own founder picture
+  // The stock founder/logo.png is HatchPad's own logo, so only the hatchpad pad may use it.
+  const founderFile = fs.existsSync(padLogo) ? padLogo : (pad.id === 'hatchpad' ? path.join(__dirname, 'founder', 'logo.png') : '');
+  if (founderWallet && /^[1-9A-HJ-NP-Za-km-z]{32,44}$/.test(founderWallet) && founderFile && fs.existsSync(founderFile)) {
+    const text = { name: env('FOUNDER_NAME') || pad.founderName, ticker: (env('FOUNDER_SYMBOL') || pad.founderSymbol).toUpperCase(), description: env('FOUNDER_DESCRIPTION') || pad.founderDescription };
     const buf = fs.readFileSync(founderFile);
     const id = art.seed(buf, text);
     if (id) founder = Object.assign({ id, ext: 'png', wallet: founderWallet, buf: buf }, text);
   }
-  const server = createApp({ art, launcher, launches, founder, verifier: createVerifier({ secret: verifySecret || undefined }) });
+  const server = createApp({ art, launcher, launches, founder, pad, verifier: createVerifier({ secret: verifySecret || undefined }) });
   server.listen(PORT, '0.0.0.0', () => {
-    console.log('HatchPad listening on port ' + PORT + (art.info().enabled ? ' (animal studio on, ' + art.provider + ')' : ' (animal studio OFF: ' + art.reason + '; provider ' + art.provider + ')') + (artDir ? ' (pictures saved in ' + artDir + ')' : ' (pictures in memory only: no volume)') +
+    console.log(pad.name + ' listening on port ' + PORT + (art.info().enabled ? ' (picture studio on, ' + art.provider + ')' : ' (picture studio OFF: ' + art.reason + '; provider ' + art.provider + ')') + (artDir ? ' (pictures saved in ' + artDir + ')' : ' (pictures in memory only: no volume)') +
       (launcher.info().enabled ? ' (' + cluster + ' launch on)' : ' (' + cluster + ' launch off: set PLATFORM_FEE_WALLET)') + (launchesFile ? ' (launch list saved in ' + launchesFile + ')' : ' (launch list in memory only)'));
   });
   // Railway stops containers with SIGTERM; close cleanly.

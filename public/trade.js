@@ -26,7 +26,7 @@
   const WHY = {
     bad_pool: 'That is not a valid coin address.',
     pool_not_found: 'No coin found at that address on this network.',
-    not_an_animalpad_pool: 'That coin was not launched through HatchPad.',
+    not_an_animalpad_pool: 'That coin was not launched through ' + window.PAD.name + '.',
     rate_limited: 'Too many requests. Wait a minute.',
     bad_amount: 'Enter an amount between 0.01 and 5 SOL.',
     curve_full: 'The curve is full and moving to its DEX pool, so there is nothing left to buy here.',
@@ -74,7 +74,7 @@
     $('t-fees').hidden = !feeInfo;
     if (!feeInfo) return;
     $('t-fee-text').textContent = 'Creator fees waiting: ' + feeInfo.pendingSol.toFixed(6) + ' SOL' +
-      (feeInfo.splitOk ? ' · split ' + feeInfo.creatorPct + '% creator, ' + feeInfo.platformPct + '% HatchPad' : ' · fee split not set yet');
+      (feeInfo.splitOk ? ' · split ' + feeInfo.creatorPct + '% creator, ' + feeInfo.platformPct + '% ' + window.PAD.name + '' : ' · fee split not set yet');
     $('t-claim').disabled = busy || !feeInfo.splitOk || !(feeInfo.pendingSol > 0.00001);
   }
 
@@ -112,7 +112,7 @@
       const signature = await W.signAndSend(data.transaction);
       say('Sent. Waiting for the network to confirm…');
       const state = await W.confirm(signature);
-      if (state === 'confirmed') { busy = false; await loadFees(pool.address); say('Sent ✓ Creator fees were paid to the creator and HatchPad wallets.'); }
+      if (state === 'confirmed') { busy = false; await loadFees(pool.address); say('Sent ✓ Creator fees were paid to the creator and ' + window.PAD.name + ' wallets.'); }
       else if (state === 'failed') { say('', false); fail('The payout failed on-chain. Reload the coin and try again.'); }
       else say('Not confirmed yet. Reload the pool in a minute to see the result.', true);
     } catch (err) {

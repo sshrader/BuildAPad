@@ -12,11 +12,11 @@
   let founderMode = false; // ?founder=1 stages the ready-made founder picture instead of an AI one
 
   const WHY = {
-    bad_prompt: 'Describe the animal in a few words, like "a tired heron in a tiny crown".',
-    blocked_prompt: 'That names a real character, brand or person. Describe an original animal instead.',
-    rate_limited: 'That is a lot of animals for one hour. Take a break and try again soon.',
-    daily_limit: 'The studio is out of animals for today. Try again tomorrow.',
-    art_unavailable: 'The animal studio is not switched on for this site.',
+    bad_prompt: 'Describe the ' + window.PAD.subject + ' in a few words.',
+    blocked_prompt: 'That names a real character, brand or person. Describe an original ' + window.PAD.subject + ' instead.',
+    rate_limited: 'That is a lot of ' + window.PAD.subjects + ' for one hour. Take a break and try again soon.',
+    daily_limit: 'The studio is out of ' + window.PAD.subjects + ' for today. Try again tomorrow.',
+    art_unavailable: 'The picture studio is not switched on for this site.',
     generation_failed: 'The studio could not make that one. Try again, or change the description.'
   };
 
@@ -40,7 +40,7 @@
     $('a-accept').disabled = busy;
     $('a-card').hidden = !current;
     $('stage').dataset.state = busy ? 'drawing' : current ? 'ready' : 'empty';
-    $('empty-text').textContent = busy ? 'Drawing. This takes about half a minute.' : 'Your animal shows up here';
+    $('empty-text').textContent = busy ? 'Drawing. This takes about half a minute.' : 'Your ' + window.PAD.subject + ' shows up here';
     if (current) {
       $('a-img').src = current.imageUrl;
       $('a-desc').textContent = current.description;
@@ -52,7 +52,7 @@
     const animal = $('a-prompt').value.trim();
     if (animal.length < 3) { say(WHY.bad_prompt, true); return; }
     busy = true; render();
-    say('Drawing your animal. This takes about half a minute…');
+    say('Drawing your ' + window.PAD.subject + '. This takes about half a minute…');
     document.dispatchEvent(new CustomEvent('animalpad:reset'));
     try {
       const res = await fetch('/api/art/generate', {

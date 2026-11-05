@@ -40,26 +40,26 @@
   };
   window.AnimalNet = net;
 
-  // SOL price chip in the header, refreshed every minute. It stays hidden if the price cannot be read.
+  // SOL and BTC price chips in the header, refreshed every minute. A chip stays hidden if its price cannot be read.
   function startTicker() {
     const row = document.querySelector('.top .row');
     if (!row) return;
-    const chip = document.createElement('span');
-    chip.className = 'chip-price'; chip.hidden = true;
-    chip.title = 'Solana price in US dollars';
-    const dot = document.createElement('i'); dot.setAttribute('aria-hidden', 'true');
-    const txt = document.createElement('span');
-    chip.appendChild(dot); chip.appendChild(txt);
-    row.insertBefore(chip, row.firstChild);
+    function chip(label, color, title) {
+      const el = document.createElement('span');
+      el.className = 'chip-price'; el.hidden = true; el.title = title;
+      const dot = document.createElement('i'); dot.setAttribute('aria-hidden', 'true'); dot.style.background = color;
+      const txt = document.createElement('span');
+      el.appendChild(dot); el.appendChild(txt);
+      return { el: el, set: function (v) { if (!Number.isFinite(v)) return; txt.textContent = label + ' $' + (v >= 10000 ? Math.round(v).toLocaleString('en-US') : v.toLocaleString('en-US', { minimumFractionDigits: 2, maximumFractionDigits: 2 })); el.hidden = false; } };
+    }
+    const sol = chip('SOL', 'linear-gradient(135deg, #9945ff, #14f195)', 'Solana price in US dollars');
+    const btc = chip('BTC', '#f7931a', 'Bitcoin price in US dollars');
+    row.insertBefore(btc.el, row.firstChild); row.insertBefore(sol.el, row.firstChild);
     function pull() {
       fetch('/api/price', { headers: { Accept: 'application/json' } })
         .then(function (r) { return r.ok ? r.json() : null; })
-        .then(function (b) {
-          if (!b || !Number.isFinite(b.usd)) return;
-          txt.textContent = 'SOL $' + b.usd.toLocaleString('en-US', { minimumFractionDigits: 2, maximumFractionDigits: 2 });
-          chip.hidden = false;
-        })
-        .catch(function () { /* keep the last price, or stay hidden */ });
+        .then(function (b) { if (!b) return; sol.set(b.usd); btc.set(b.btcUsd); })
+        .catch(function () { /* keep the last prices, or stay hidden */ });
     }
     pull();
     setInterval(pull, 60000);

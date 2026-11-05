@@ -93,27 +93,34 @@ function createApp(opts) {
   // The official coin: once it exists on-chain that is remembered, and its numbers (curve, fees waiting) are refreshed at most
   // every 20 seconds, so the home page never causes a flood of chain reads.
   let founderDone = null, founderAsked = 0, founderStats = null;
-  // SOL price in USD, cached for a minute. Tries Coinbase first, then CoinGecko. Returns the last good price if both fail.
+  // SOL and BTC prices in USD, cached for a minute. Tries Coinbase first, then CoinGecko. Returns the last good prices if both fail.
   const priceFetch = opts.priceFetch || (typeof fetch === 'function' ? fetch : null);
-  let solPrice = null, solPriceTried = 0;
-  async function getSolPrice() {
+  let prices = null, pricesTried = 0;
+  async function getJson(u) {
+    const r = await priceFetch(u, { headers: { Accept: 'application/json' }, signal: AbortSignal.timeout(5000) });
+    if (!r.ok) throw new Error('bad status');
+    return r.json();
+  }
+  const okPrice = v => (Number.isFinite(v) && v > 0 && v < 1e9 ? v : null);
+  async function getPrices() {
     if (!priceFetch) return null;
-    if (solPrice && Date.now() - solPrice.at < 60000) return solPrice;
-    if (Date.now() - solPriceTried < 15000) return solPrice;
-    solPriceTried = Date.now();
-    const sources = [
-      ['https://api.coinbase.com/v2/prices/SOL-USD/spot', j => j && j.data && j.data.amount],
-      ['https://api.coingecko.com/api/v3/simple/price?ids=solana&vs_currencies=usd', j => j && j.solana && j.solana.usd]
-    ];
-    for (const [u, pick] of sources) {
+    if (prices && Date.now() - prices.at < 60000) return prices;
+    if (Date.now() - pricesTried < 15000) return prices;
+    pricesTried = Date.now();
+    let sol = null, btc = null;
+    try {
+      const r = await Promise.all([getJson('https://api.coinbase.com/v2/prices/SOL-USD/spot').catch(() => null), getJson('https://api.coinbase.com/v2/prices/BTC-USD/spot').catch(() => null)]);
+      sol = okPrice(Number(r[0] && r[0].data && r[0].data.amount)); btc = okPrice(Number(r[1] && r[1].data && r[1].data.amount));
+    } catch (e) { /* fall through */ }
+    if (sol === null || btc === null) {
       try {
-        const r = await priceFetch(u, { headers: { Accept: 'application/json' }, signal: AbortSignal.timeout(5000) });
-        if (!r.ok) continue;
-        const v = Number(pick(await r.json()));
-        if (Number.isFinite(v) && v > 0 && v < 1e6) { solPrice = { usd: v, at: Date.now() }; return solPrice; }
-      } catch (e) { /* try the next one */ }
+        const j = await getJson('https://api.coingecko.com/api/v3/simple/price?ids=solana,bitcoin&vs_currencies=usd');
+        if (sol === null) sol = okPrice(Number(j && j.solana && j.solana.usd));
+        if (btc === null) btc = okPrice(Number(j && j.bitcoin && j.bitcoin.usd));
+      } catch (e) { /* keep what we have */ }
     }
-    return solPrice;
+    if (sol !== null || btc !== null) prices = { sol: sol !== null ? sol : (prices && prices.sol) || null, btc: btc !== null ? btc : (prices && prices.btc) || null, at: Date.now() };
+    return prices;
   }
 
   const reportCache = new Map();
@@ -627,11 +634,11 @@ function createApp(opts) {
       return send(res, 200, req.method === 'HEAD' ? '' : JSON.stringify(meta), Object.assign({}, JSON_TYPE, { 'Cache-Control': 'public, max-age=3600' }));
     }
 
-    // The SOL price for the header ticker. One lookup a minute is shared by every visitor, so the page never talks to the price site.
+    // The SOL and BTC prices for the header ticker. One lookup a minute is shared by every visitor, so the page never talks to the price site.
     if (pathname === '/api/price') {
       const noStore = Object.assign({}, JSON_TYPE, { 'Cache-Control': 'public, max-age=30' });
-      getSolPrice().then(p => send(res, 200, req.method === 'HEAD' ? '' : JSON.stringify({ usd: p ? p.usd : null, at: p ? p.at : null }), noStore))
-        .catch(() => send(res, 200, JSON.stringify({ usd: null, at: null }), noStore));
+      getPrices().then(p => send(res, 200, req.method === 'HEAD' ? '' : JSON.stringify({ usd: p ? p.sol : null, btcUsd: p ? p.btc : null, at: p ? p.at : null }), noStore))
+        .catch(() => send(res, 200, JSON.stringify({ usd: null, btcUsd: null, at: null }), noStore));
       return;
     }
 

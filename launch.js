@@ -465,8 +465,10 @@ function createLauncher(opts) {
       for (const mint of (ctx && ctx.mints) || []) {
         const curve = await readCurve(c, mint).catch(() => null);
         if (!curve || curve.creator !== c.B.sharingConfigOf(mint).toBase58()) continue;
-        const total = await pending(c, mint, curve);
-        list.push({ pool: mint, preset: '', waitingSol: total * platformPct / 100, totalSol: total });
+        // A coin that graduated to its trading pool pays its fees out on pump.fun, so nothing can be sent out here.
+        const done = Boolean(curve.complete);
+        const total = done ? 0 : await pending(c, mint, curve);
+        list.push({ pool: mint, preset: '', waitingSol: total * platformPct / 100, totalSol: total, migrated: done });
       }
       list.sort((a, b) => b.waitingSol - a.waitingSol);
       return { status: 200, body: { feeClaimers: [platformWallet], pools: list, totalWaitingSol: list.reduce((s, p) => s + p.waitingSol, 0), cluster } };

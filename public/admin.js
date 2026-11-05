@@ -38,7 +38,7 @@
     const a = document.createElement('span'); a.textContent = p.pool;
     who.appendChild(b); who.appendChild(a);
     const amt = document.createElement('div'); amt.className = 'amt';
-    amt.textContent = fmt(p.waitingSol) + ' SOL waiting · ' + fmt(p.totalSol) + ' all-time';
+    amt.textContent = p.migrated ? 'Graduated: fees are paid out on pump.fun' : fmt(p.waitingSol) + ' SOL waiting · ' + fmt(p.totalSol) + ' all-time';
     const btn = document.createElement('button');
     btn.type = 'button'; btn.className = 'btn'; btn.textContent = 'Send out';
     btn.disabled = busy || !(p.waitingSol > 0);
@@ -92,12 +92,12 @@
     let claimed = 0, total = 0;
     try {
       for (const p of list) {
-        if (!(p.waitingSol > 0)) continue;
+        if (p.migrated || !(p.waitingSol > 0)) continue;
         say('Preparing the payout for ' + (names[p.pool] || p.pool.slice(0, 6) + '…') + '…');
         const res = await fetch('/api/admin/claim', { method: 'POST', headers: { 'Content-Type': 'application/json' }, body: JSON.stringify({ pool: p.pool, claimer: wallet }) });
         const body = await res.json().catch(() => null);
         if (!res.ok || !body || typeof body.transaction !== 'string') {
-          if (body && body.error === 'nothing_to_claim') continue;
+          if (body && (body.error === 'nothing_to_claim' || body.error === 'migrated')) continue;
           say(WHY[body && body.error] || 'Could not prepare that claim. Try again.', true);
           break;
         }

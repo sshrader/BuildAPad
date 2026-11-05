@@ -12,6 +12,7 @@
 <link rel="icon" href="/icon.svg" type="image/svg+xml">
 <link rel="stylesheet" href="/app.css">
 <style>
+.backs { display: flex; flex-wrap: wrap; gap: 10px; }
 .back { color: var(--text); font-weight: 600; text-underline-offset: 4px; }
 .coinpage { display: grid; grid-template-columns: minmax(0, 320px) minmax(0, 1fr); gap: 24px; align-items: start; }
 @media (max-width: 720px) { .coinpage { grid-template-columns: minmax(0, 1fr); } }
@@ -57,10 +58,12 @@ a.btn { text-decoration: none; display: inline-block; }
     <div class="row">
       <span class="chip-net" data-net-only="devnet">Devnet test · no real money</span>
       <span class="chip-net live" data-net-only="mainnet-beta" hidden>Live · real SOL</span>
-      <a class="btn go" href="/build">Build a pad</a>
     </div>
   </header>
-  <a class="back" href="/">Back to BuildAPad</a>
+  <nav class="backs" aria-label="Back to">
+    <a class="btn" href="/">← BuildAPad</a>
+    <a class="btn" id="back-pad" href="/" hidden>← <span id="back-pad-name"></span></a>
+  </nav>
 
   <section class="panel" id="cp" aria-live="polite">
     <p class="hint" id="cp-note">Loading this coin…</p>

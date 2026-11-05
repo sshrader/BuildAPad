@@ -278,7 +278,18 @@
   fetch('/api/launches/' + pool, { cache: 'no-store', headers: { Accept: 'application/json' } })
     .then(r => r.json().then(b => ({ status: r.status, body: b })))
     .then(async r => {
-      if (r.status === 200) { await AnimalNet.ready; render(r.body, await getCfg); }
+      if (r.status === 200) {
+        await AnimalNet.ready; render(r.body, await getCfg);
+        // A coin launched on a custom pad links back to that pad as well as to BuildAPad.
+        if (/^[a-z0-9-]{2,30}$/.test(r.body.pad || '')) {
+          fetch('/api/pads/' + r.body.pad, { headers: { Accept: 'application/json' } }).then(x => (x.ok ? x.json() : null)).then(p => {
+            if (!p || !p.pad) return;
+            document.getElementById('back-pad-name').textContent = p.pad.name;
+            document.getElementById('back-pad').href = '/p/' + encodeURIComponent(p.pad.slug);
+            document.getElementById('back-pad').hidden = false;
+          }).catch(() => { /* the BuildAPad link is still there */ });
+        }
+      }
       else if (r.status === 404) problem('No coin found here. It may not be on the chain yet. Try again in a few seconds.');
       else problem('Could not load this coin. Try again in a moment.');
     })

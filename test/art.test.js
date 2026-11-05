@@ -542,3 +542,11 @@ test('the price route returns the SOL price, caches it, and falls back to a seco
     assert.equal(calls, before);
   });
 });
+
+test('the Lute referral path redirects without showing the handle on the page', async () => {
+  await withServer({ art: createArt({ logger: quiet }) }, async base => {
+    const r = await fetch(base + '/go/lute', { redirect: 'manual' });
+    assert.equal(r.status, 302);
+    assert.match(r.headers.get('location'), /^https:\/\/lute\.gg\//);
+  });
+});

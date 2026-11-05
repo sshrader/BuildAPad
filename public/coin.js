@@ -108,6 +108,7 @@
     if (B58.test(c.mint || '')) copyButton('Copy CA', c.mint);
     copyButton('Copy buy link', blink);
     startFees(body, c);
+    { const tip = add(body, 'p', 'Like a trading terminal? ', 'hint'); const a = add(tip, 'a', 'Try Lute'); a.href = '/go/lute'; a.target = '_blank'; a.rel = 'sponsored noopener'; tip.appendChild(document.createTextNode(' (referral link).')); }
 
     const f = add(body, 'dl', undefined, 'facts');
     function fact(label, node) { add(f, 'dt', label); const dd = add(f, 'dd'); if (typeof node === 'string') dd.textContent = node; else dd.appendChild(node); }

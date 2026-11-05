@@ -327,6 +327,11 @@ function createApp(opts) {
       }).catch(() => send(res, 500, JSON.stringify({ error: 'server_error' }), noStore));
       return;
     }
+    // Referral link to the Lute trading terminal. The page links to /go/lute, so the address bar and hover text stay tidy.
+    if (pathname === '/go/lute') {
+      res.writeHead(302, { Location: process.env.LUTE_REF_URL || 'https://lute.gg/@sol_synxer', 'Cache-Control': 'no-store', 'Referrer-Policy': 'no-referrer' });
+      return res.end();
+    }
     if (pathname === '/admin') pathname = '/admin.html';
     if (pathname === '/admin/launch') pathname = '/admin-launch.html';
 

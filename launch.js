@@ -396,7 +396,7 @@ function createLauncher(opts) {
     // A pad's owner can block wallets from buying through this site. (Anyone can still buy on pump.fun itself.)
     if (ctx && typeof ctx.isDenied === 'function' && ctx.isDenied(b.pool, b.buyer)) return { status: 403, body: { error: 'denied' } };
     const sol = Number(b.sol);
-    if (!Number.isFinite(sol) || sol <= 0 || sol > MAX_BUY_SOL || (sol < MIN_BUY_SOL && !o.pairTrade)) return { status: 400, body: { error: 'bad_amount' } };
+    if (!Number.isFinite(sol) || sol <= 0 || sol > 1e12) return { status: 400, body: { error: 'bad_amount' } };
     try {
       const c = await chain();
       const curve = await readCurve(c, b.pool);
@@ -422,6 +422,7 @@ function createLauncher(opts) {
           c.B.buyExactIn({ user: buyerPk, mint: b.pool, lamports: amount, minTokensOut: min, buybackRecipient: recipients[0], quote })];
         return { status: 200, body: { transaction: await toTx(c, budget(c, CU.buy).concat(ixs), buyerPk), partialFill: false, cluster } };
       }
+      if (sol < MIN_BUY_SOL || sol > MAX_BUY_SOL) return { status: 400, body: { error: 'bad_amount' } };
       const transaction = await buildBuy(c, buyerPk, b.pool, curve, sol, 500);
       return { status: 200, body: { transaction, partialFill: false, cluster } };
     } catch (err) {

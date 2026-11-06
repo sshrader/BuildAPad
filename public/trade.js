@@ -47,6 +47,7 @@
     $('t-bar').style.width = pct + '%';
     $('t-prog').textContent = pool.raisedSol.toFixed(3) + ' of ' + pool.thresholdSol.toFixed(3) + ' ' + (pool.paired ? 'of the pair token' : 'SOL') + ' raised · ' + pct + '%' +
       (pool.migrated ? ' · moved to its DEX pool' : pool.curveFull ? ' · curve full' : '');
+    $('t-amt').setAttribute('aria-label', pool.paired ? 'Amount in the pair token' : 'Amount in SOL');
     $('t-buy').disabled = busy || pool.curveFull;
   }
 
@@ -130,7 +131,7 @@
   async function buy() {
     if (!pool || busy) return;
     const sol = Number($('t-amt').value);
-    if (!Number.isFinite(sol) || (sol < 0.01 && !(pool && pool.paired)) || sol <= 0 || sol > 5) { fail(WHY.bad_amount); return; }
+    if (!Number.isFinite(sol) || sol <= 0 || (!(pool && pool.paired) && (sol < 0.01 || sol > 5))) { fail(WHY.bad_amount); return; }
     fail('');
     busy = true; renderInfo();
     try {

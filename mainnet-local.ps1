@@ -4,7 +4,10 @@
 
 $rpc = Read-Host "Paste your Helius MAINNET address (with your key)"
 $fee = Read-Host "Paste a PUBLIC wallet address to receive the platform's fee share (not your test wallet)"
-if (-not $rpc -or -not $fee) { Write-Host "Both are needed."; exit 1 }
+$rpc = $rpc.Trim().Trim('"').Trim("'")
+$fee = $fee.Trim().Trim('"').Trim("'")
+if (-not $rpc -or $rpc -match "devnet" -or $rpc -notmatch "^https://") { Write-Host "The RPC address must start with https:// and be a MAINNET address."; exit 1 }
+if ($fee -notmatch "^[1-9A-HJ-NP-Za-km-z]{32,44}$") { Write-Host "That fee wallet is not a valid Solana address: [$fee]"; exit 1 }
 
 $env:LAUNCH_CLUSTER   = "mainnet-beta"
 $env:MAINNET_ENABLED  = "yes"

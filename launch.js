@@ -468,6 +468,7 @@ function createLauncher(opts) {
       const curve = await readCurve(c, mint);
       if (!curve) return { status: 404, body: { error: 'pool_not_found' } };
       const splitOk = curve.creator === c.B.sharingConfigOf(mint).toBase58();
+      const feeQuote = await quoteOfCurve(c, curve);
       // Who gets what is read from the coin's own fee split on-chain, so a pad's owner share shows up too.
       let holders = [];
       if (splitOk) {
@@ -479,7 +480,7 @@ function createLauncher(opts) {
       }
       const platformHeld = holders.find(h => h.address === platformWallet);
       const pp = platformHeld ? platformHeld.pct : platformPct;
-      return { status: 200, body: { mint, paired: Boolean(await quoteOfCurve(c, curve)), pendingSol: await pending(c, mint, curve), splitOk, creatorPct: 100 - pp, platformPct: pp, shares: holders, platformWallet, cluster } };
+      return { status: 200, body: { mint, paired: Boolean(feeQuote), pairMint: feeQuote ? feeQuote.mint.toBase58() : '', pendingSol: await pending(c, mint, curve), splitOk, creatorPct: 100 - pp, platformPct: pp, shares: holders, platformWallet, cluster } };
     } catch (err) {
       logger.error('Launch fees read failed: ' + (err && err.stack ? err.stack : 'unknown error'));
       return { status: 502, body: { error: 'fees_read_failed' } };
@@ -567,6 +568,31 @@ function createLauncher(opts) {
     }
   }
 
+  // USD price of each pair token, from the RPC's asset lookup (Helius reports a price for the well-known ones). Cached for a minute.
+  // A token with no known price is simply left out, and the page then shows only the token amount.
+  const priceCache = new Map();
+  async function pairPrices(mints) {
+    const nowMs = (o.now || Date.now)();
+    const want = Array.from(new Set((mints || []).filter(m => typeof m === 'string' && B58_RE.test(m))));
+    const stale = want.filter(m => { const h = priceCache.get(m); return !h || nowMs - h.at > 60000; });
+    const doFetch = o.fetch || (typeof fetch === 'function' ? fetch : null);
+    if (stale.length && pairsRpc && doFetch) {
+      try {
+        const res = await doFetch(pairsRpc, { method: 'POST', headers: { 'Content-Type': 'application/json' }, body: JSON.stringify({ jsonrpc: '2.0', id: 1, method: 'getAssetBatch', params: { ids: stale } }), signal: AbortSignal.timeout(8000) });
+        const j = await res.json();
+        const got = new Set();
+        (j.result || []).forEach(a => {
+          const price = a && a.token_info && a.token_info.price_info ? Number(a.token_info.price_info.price_per_token) : NaN;
+          if (a && a.id) { got.add(a.id); priceCache.set(a.id, { at: nowMs, usd: Number.isFinite(price) && price > 0 ? price : null }); }
+        });
+        stale.forEach(m => { if (!got.has(m)) priceCache.set(m, { at: nowMs, usd: null }); });
+      } catch (e) { logger.error('Pair price lookup failed: ' + (e && e.message)); stale.forEach(m => { if (!priceCache.has(m)) priceCache.set(m, { at: nowMs - 45000, usd: null }); }); }
+    }
+    const out = {};
+    want.forEach(m => { const h = priceCache.get(m); if (h && h.usd !== null) out[m] = h.usd; });
+    return out;
+  }
+
   // What the chain shows about a coin's holders and recent trading, for the mascot's report. Cached for a minute.
   const activityCache = new Map();
   async function activity(mint, ctx) {
@@ -640,7 +666,7 @@ function createLauncher(opts) {
     }
   }
 
-  return { info, lookupAddresses, prepare, step, status, pool, inspect, buy, fees, distribute, partnerFees, activity, pairs };
+  return { info, lookupAddresses, prepare, step, status, pool, inspect, buy, fees, distribute, partnerFees, activity, pairs, pairPrices };
 }
 
 // Metadata for the token, read by wallets and explorers. Built from the link and the stored animal, so the

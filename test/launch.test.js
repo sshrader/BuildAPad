@@ -559,3 +559,19 @@ test('a pad with a pool pair creates its coin against that token, and a first bu
   const missing = await launcher.prepare(good, Object.assign({}, ctx, { pad: { pair: key() } }));
   assert.equal(missing.body.error, 'pair_not_found');
 });
+
+test('pairPrices reads a USD price per token from the RPC asset lookup and caches it', async () => {
+  const M1 = key(), M2 = key();
+  let calls = 0;
+  const { launcher } = make({
+    pairsRpcUrl: 'https://mainnet.example/rpc',
+    fetch: async () => { calls++; return { json: async () => ({ result: [
+      { id: M1, token_info: { price_info: { price_per_token: 0.0000029 } } },
+      { id: M2, token_info: {} }
+    ] }) }; }
+  }, {});
+  const r = await launcher.pairPrices([M1, M2, 'not an address']);
+  assert.deepEqual(r, { [M1]: 0.0000029 });
+  await launcher.pairPrices([M1, M2]);
+  assert.equal(calls, 1);
+});

@@ -74,7 +74,9 @@
     add(bar, 'i').style.width = pct + '%';
     add(body, 'p', c.migrated ? 'This coin has moved to its regular trading pool.'
       : c.curveFull ? 'The curve is full. It is ready to move to a trading pool.'
-      : pct + '% full · ' + Number(c.raisedSol).toFixed(3) + ' of ' + Number(c.thresholdSol).toFixed(3) + ' ' + (c.pairSymbol || 'SOL') + ' raised', 'hint');
+      : pct + '% full · ' + (c.pairSymbol && Number.isFinite(c.usdPerUnit)
+        ? AnimalNet.usd(c.raisedSol * c.usdPerUnit) + ' of ' + AnimalNet.usd(c.thresholdSol * c.usdPerUnit) + ' raised (' + Number(c.raisedSol).toLocaleString(undefined, { maximumFractionDigits: 2 }) + ' ' + c.pairSymbol + ')'
+        : Number(c.raisedSol).toFixed(3) + ' of ' + Number(c.thresholdSol).toFixed(3) + ' ' + (c.pairSymbol || 'SOL') + ' raised'), 'hint');
 
     const links = c.links || {};
     const out = [['website', 'Website'], ['twitter', 'X'], ['telegram', 'Telegram']]
@@ -148,7 +150,7 @@
     };
     function draw() {
       if (!info) return;
-      text.textContent = 'Creator fees waiting: ' + info.pendingSol.toFixed(6) + ' ' + (c.pairSymbol || (info.paired ? 'pair token' : 'SOL')) +
+      text.textContent = 'Creator fees waiting: ' + (info.paired && Number.isFinite(info.usdPerUnit) ? AnimalNet.usd(info.pendingSol * info.usdPerUnit) + ' (' + info.pendingSol.toLocaleString(undefined, { maximumFractionDigits: 4 }) + ' ' + (c.pairSymbol || 'pair token') + ')' : info.pendingSol.toFixed(6) + ' ' + (c.pairSymbol || (info.paired ? 'pair token' : 'SOL'))) +
         (info.splitOk ? ' · split ' + window.feeLine(info) : ' · fee split not set yet');
       btn.hidden = false;
       btn.disabled = busy || !info.splitOk || !(info.pendingSol > 0.00001);
@@ -221,6 +223,7 @@
         const f = b.facts, bits = [];
         if (Number.isFinite(f.percentFull)) bits.push(f.percentFull + '% full');
         if (Number.isFinite(f.raisedSol)) bits.push(f.raisedSol + ' SOL raised');
+        else if (Number.isFinite(f.raisedUsd)) bits.push(AnimalNet.usd(f.raisedUsd) + ' raised');
         if (f.holders !== null && f.holders !== undefined) bits.push(f.holders + ' holders');
         if (Number.isFinite(f.biggestHolderPercentOfSupply)) bits.push('biggest holder ' + f.biggestHolderPercentOfSupply + '%');
         if (Number.isFinite(f.tradesLastHour)) bits.push(f.tradesLastHour + ' trades in the last hour');

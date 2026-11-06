@@ -123,6 +123,17 @@ function createApp(opts) {
     return prices;
   }
 
+  // USD value of one unit of a coin's pool token: SOL when there is no pair, otherwise the pair token. null when no price is known.
+  async function unitUsd(pairMint) {
+    try {
+      if (!pairMint) { const p = await getPrices(); return p && Number.isFinite(p.sol) ? p.sol : null; }
+      if (!launcher || !launcher.pairPrices) return null;
+      const m = await launcher.pairPrices([pairMint]);
+      return Number.isFinite(m[pairMint]) ? m[pairMint] : null;
+    } catch (e) { return null; }
+  }
+  const padPairMint = slug => { try { const st = slug && padStore ? padStore.settings(slug) : null; return (st && st.pair && st.pair.mint) || ''; } catch (e) { return ''; } };
+
   // A pad's chosen pool pair must be one pump.fun allows. The name and symbol are filled in from the real list, never trusted from the page.
   async function checkPair(body) {
     const st = body && body.settings && typeof body.settings === 'object' ? body.settings : null;
@@ -368,9 +379,15 @@ function createApp(opts) {
         if (set && !set.ai.chat) return send(res, 403, JSON.stringify({ error: 'ai_off' }), noStore);
         const act = await launcher.activity(d.body.mint || pool, { ip: clientIp(req) });
         const a = act.status === 200 ? act.body : {};
+        // A coin on a pair other than SOL is reported in dollars, since its raised amount is in another token.
+        const pairedCoin = Boolean(padPairMint(d.body.pad));
+        const uPrice = await unitUsd(padPairMint(d.body.pad));
+        const usdOf = n => (Number.isFinite(n) && Number.isFinite(uPrice) ? Number((n * uPrice).toFixed(2)) : null);
         const facts = {
-          raisedSol: Number.isFinite(d.body.raisedSol) ? Number(d.body.raisedSol.toFixed(3)) : null,
-          targetSol: Number.isFinite(d.body.thresholdSol) ? Number(d.body.thresholdSol.toFixed(2)) : null,
+          raisedSol: !pairedCoin && Number.isFinite(d.body.raisedSol) ? Number(d.body.raisedSol.toFixed(3)) : null,
+          targetSol: !pairedCoin && Number.isFinite(d.body.thresholdSol) ? Number(d.body.thresholdSol.toFixed(2)) : null,
+          raisedUsd: usdOf(d.body.raisedSol),
+          targetUsd: usdOf(d.body.thresholdSol),
           percentFull: Number.isFinite(d.body.progress) ? Math.round(d.body.progress * 100) : null,
           graduated: d.body.migrated ? 'yes' : 'no',
           holders: a.holders === null || a.holders === undefined ? null : a.holders + (a.holdersCapped ? ' or more' : ''),
@@ -490,23 +507,32 @@ function createApp(opts) {
     }
     if (pathname === '/api/leaderboard') {
       const hdr = Object.assign({}, JSON_TYPE, { 'Cache-Control': 'public, max-age=15' });
-      const out = () => {
+      const out = async () => {
         const b = launches ? launches.board(50) : { rows: [], totalCoins: 0, totalRaisedSol: 0 };
-        const rows = b.rows.map(r => { const p = padStore ? padStore.get(r.slug) : null; return p ? Object.assign({ name: p.name, accent: p.accent, logoUrl: p.logoUrl, tagline: p.tagline, pairSymbol: (padStore.settings(r.slug).pair || {}).symbol || '' }, r) : null; }).filter(Boolean);
-        // Pools in different pair tokens cannot be added or compared by amount, so pads rank by coins launched, then graduated coins, and only SOL pads use SOL raised as the last tie-break.
-        rows.sort((x, y) => (y.coins - x.coins) || (y.graduated - x.graduated) || ((y.pairSymbol ? 0 : y.raisedSol) - (x.pairSymbol ? 0 : x.raisedSol)));
+        // What one unit of each pool token is worth in dollars, so coins on different pairs can be shown and ranked on one scale.
+        const coinsAll = launches ? launches.topCoins(200) : [];
+        const mints = new Set(['']);
+        b.rows.forEach(r => mints.add(padPairMint(r.slug)));
+        coinsAll.forEach(c => mints.add(padPairMint(c.pad)));
+        const usd = {};
+        await Promise.all(Array.from(mints).map(async m => { usd[m] = await unitUsd(m); }));
+        const dollars = (amount, mint) => (Number.isFinite(usd[mint]) && Number.isFinite(amount) ? Math.round(amount * usd[mint] * 100) / 100 : null);
+        const rows = b.rows.map(r => { const p = padStore ? padStore.get(r.slug) : null; const pm = padPairMint(r.slug); return p ? Object.assign({ name: p.name, accent: p.accent, logoUrl: p.logoUrl, tagline: p.tagline, pairSymbol: (padStore.settings(r.slug).pair || {}).symbol || '', raisedUsd: dollars(r.raisedSol, pm) }, r) : null; }).filter(Boolean);
+        // Pads rank by coins launched, then graduated coins, then dollars raised (a pad with no known price ranks last on that step).
+        rows.sort((x, y) => (y.coins - x.coins) || (y.graduated - x.graduated) || ((y.raisedUsd || 0) - (x.raisedUsd || 0)));
         const pairedRaised = rows.filter(r => r.pairSymbol).reduce((n, r) => n + (r.raisedSol || 0), 0);
         rows.length = Math.min(rows.length, 10);
         // The official coin (and any older attempt at it) stays off the list: it has its own card above.
         const old = new Set(founder && launches ? launches.findAllByArt(founder.id).concat(launches.findAllBySymbol(founder.ticker)).map(e => e.pool) : []);
-        const coins = (launches ? launches.topCoins(200) : []).filter(c => !old.has(c.pool)).sort((x, y) => (Number(y.migrated) - Number(x.migrated)) || ((y.progress || 0) - (x.progress || 0)) || ((y.raisedSol || 0) - (x.raisedSol || 0))).slice(0, 20).map(c => {
+        const coins = coinsAll.filter(c => !old.has(c.pool)).map(c => Object.assign({}, c, { raisedUsd: dollars(c.raisedSol, padPairMint(c.pad)) }))
+          .sort((x, y) => (Number(y.migrated) - Number(x.migrated)) || ((y.progress || 0) - (x.progress || 0)) || ((y.raisedUsd !== null ? y.raisedUsd : (y.raisedSol || 0)) - (x.raisedUsd !== null ? x.raisedUsd : (x.raisedSol || 0)))).slice(0, 20).map(c => {
           const p = c.pad && padStore ? padStore.get(c.pad) : null;
           return Object.assign({}, c, { padName: p ? p.name : '', padAccent: p ? p.accent : '', pairSymbol: p ? ((padStore.settings(c.pad) || {}).pair || {}).symbol || '' : '' });
         });
         return JSON.stringify({ pads: rows, coins: coins, stats: { pads: padStore ? padStore.size() : 0, coins: b.totalCoins, raisedSol: Math.max(0, b.totalRaisedSol - pairedRaised) } });
       };
       // Looking at the recent launches first keeps the raised amounts fresh (this is cached, so it is cheap).
-      (launches ? launches.list('').catch(() => []) : Promise.resolve([])).then(() => send(res, 200, req.method === 'HEAD' ? '' : out(), hdr))
+      (launches ? launches.list('').catch(() => []) : Promise.resolve([])).then(() => out()).then(body => send(res, 200, req.method === 'HEAD' ? '' : body, hdr))
         .catch(() => send(res, 500, JSON.stringify({ error: 'server_error' }), Object.assign({}, JSON_TYPE, { 'Cache-Control': 'no-store' })));
       return;
     }
@@ -589,6 +615,7 @@ function createApp(opts) {
             else if (d.status === 200 && d.body.pairSymbol) r.body.pairSymbol = d.body.pairSymbol;
           } catch (e) { /* the page falls back to "pair token" */ }
         }
+        if (r.status === 200 && r.body && typeof r.body.pairMint === 'string') r.body.usdPerUnit = await unitUsd(r.body.pairMint);
         return r;
       }).then(r => send(res, r.status, req.method === 'HEAD' ? '' : JSON.stringify(r.body), noStore))
         .catch(() => send(res, 500, JSON.stringify({ error: 'server_error' }), noStore));
@@ -599,7 +626,8 @@ function createApp(opts) {
     if (pathname === '/api/launches') {
       const noStore = Object.assign({}, JSON_TYPE, { 'Cache-Control': 'public, max-age=15' });
       if (!launches) return send(res, 200, JSON.stringify({ launches: [] }), noStore);
-      launches.list(url.searchParams.get('pad') || '').then(items => send(res, 200, req.method === 'HEAD' ? '' : JSON.stringify({ launches: items }), noStore))
+      const padQ = url.searchParams.get('pad') || '';
+      launches.list(padQ).then(async items => ({ items, usd: padQ ? await unitUsd(padPairMint(padQ)) : undefined })).then(r => send(res, 200, req.method === 'HEAD' ? '' : JSON.stringify({ launches: r.items, usdPerUnit: r.usd }), noStore))
         .catch(() => send(res, 500, JSON.stringify({ error: 'server_error' }), Object.assign({}, JSON_TYPE, { 'Cache-Control': 'no-store' })));
       return;
     }
@@ -609,7 +637,10 @@ function createApp(opts) {
     if (dm) {
       const noStore = Object.assign({}, JSON_TYPE, { 'Cache-Control': 'no-store' });
       if (!launches) return send(res, 404, JSON.stringify({ error: 'not_found' }), noStore);
-      launches.detail(dm[1]).then(r => {
+      launches.detail(dm[1]).then(async r => {
+        if (r.status === 200) r.body.usdPerUnit = await unitUsd(padPairMint(r.body.pad));
+        return r;
+      }).then(r => {
         // A website the creator has not yet proven gets the code to put on it.
         // Whether the coin's pad has the mascot chat on, and the mascot's name, so the page can show the right thing.
         if (r.status === 200 && padStore && r.body.pad) {

@@ -39,16 +39,28 @@
     launch_unavailable: 'Trading is not switched on for this site.'
   };
 
+  // The dollar value of the amount typed in the buy box, when the price is known.
+  function showUsd() {
+    const el = $('t-usd');
+    if (!el) return;
+    const n = Number($('t-amt').value);
+    const v = pool && Number.isFinite(pool.usdPerUnit) && Number.isFinite(n) && n > 0 ? AnimalNet.usd(n * pool.usdPerUnit) : '';
+    el.textContent = v ? '≈ ' + v : '';
+  }
+
   function renderInfo() {
     const info = $('t-info');
     info.hidden = !pool;
     if (!pool) return;
     const pct = Math.round(pool.progress * 100);
     $('t-bar').style.width = pct + '%';
-    $('t-prog').textContent = pool.raisedSol.toFixed(3) + ' of ' + pool.thresholdSol.toFixed(3) + ' ' + (pool.paired ? (pool.pairSymbol || 'of the pair token') : 'SOL') + ' raised · ' + pct + '%' +
+    $('t-prog').textContent = (pool.paired && Number.isFinite(pool.usdPerUnit)
+      ? AnimalNet.usd(pool.raisedSol * pool.usdPerUnit) + ' of ' + AnimalNet.usd(pool.thresholdSol * pool.usdPerUnit) + ' raised'
+      : pool.raisedSol.toFixed(3) + ' of ' + pool.thresholdSol.toFixed(3) + ' ' + (pool.paired ? (pool.pairSymbol || 'of the pair token') : 'SOL') + ' raised') + ' · ' + pct + '%' +
       (pool.migrated ? ' · moved to its DEX pool' : pool.curveFull ? ' · curve full' : '');
     const unit = pool.paired ? (pool.pairSymbol || 'pair token') : 'SOL';
     if ($('t-unit')) $('t-unit').textContent = unit;
+    showUsd();
     $('t-amt').setAttribute('aria-label', pool.paired ? 'Amount in the pair token' : 'Amount in SOL');
     $('t-buy').disabled = busy || pool.curveFull;
   }
@@ -79,7 +91,7 @@
   function renderFees() {
     $('t-fees').hidden = !feeInfo;
     if (!feeInfo) return;
-    $('t-fee-text').textContent = 'Creator fees waiting: ' + feeInfo.pendingSol.toFixed(6) + (feeInfo.paired ? ' ' + (feeInfo.pairSymbol || 'pair token') : ' SOL') +
+    $('t-fee-text').textContent = 'Creator fees waiting: ' + (feeInfo.paired && Number.isFinite(feeInfo.usdPerUnit) ? AnimalNet.usd(feeInfo.pendingSol * feeInfo.usdPerUnit) + ' (' + feeInfo.pendingSol.toLocaleString(undefined, { maximumFractionDigits: 4 }) + ' ' + (feeInfo.pairSymbol || 'pair token') + ')' : feeInfo.pendingSol.toFixed(6) + (feeInfo.paired ? ' ' + (feeInfo.pairSymbol || 'pair token') : ' SOL')) +
       (feeInfo.splitOk ? ' · split ' + window.feeLine(feeInfo) : ' · fee split not set yet');
     $('t-claim').disabled = busy || !feeInfo.splitOk || !(feeInfo.pendingSol > 0.00001);
   }
@@ -182,6 +194,7 @@
   $('t-claim').addEventListener('click', claim);
 
   // A launch made on this page opens the card with its pool loaded.
+  $('t-amt').addEventListener('input', showUsd);
   document.addEventListener('animalpad:launched', e => {
     $('t-pool').value = e.detail.pool;
     $('trade').open = true;

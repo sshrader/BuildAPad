@@ -62,7 +62,7 @@
     if (p.pairSymbol) { const pc = document.createElement('span'); pc.className = 'pairchip'; pc.textContent = p.pairSymbol + ' pair'; nm.appendChild(pc); }
     a.appendChild(logo); a.appendChild(nm);
     const nums = document.createElement('span'); nums.className = 'bnums';
-    [[p.coins, p.coins === 1 ? 'coin' : 'coins'], [fmt(p.raisedSol), (p.pairSymbol || 'SOL') + ' raised'], [p.graduated, 'graduated']].forEach(x => {
+    [[p.coins, p.coins === 1 ? 'coin' : 'coins'], (p.pairSymbol && Number.isFinite(p.raisedUsd) ? [AnimalNet.usd(p.raisedUsd), 'raised'] : [fmt(p.raisedSol), (p.pairSymbol || 'SOL') + ' raised']), [p.graduated, 'graduated']].forEach(x => {
       const d = document.createElement('span'); const v = document.createElement('b'); v.textContent = String(x[0]); d.appendChild(v); d.appendChild(document.createTextNode(' ' + x[1])); nums.appendChild(d);
     });
     const top = document.createElement('span'); top.className = 'btop';
@@ -112,7 +112,7 @@
     a.appendChild(logo); a.appendChild(nm);
     const nums = document.createElement('span'); nums.className = 'bnums';
     const pct = Math.max(0, Math.min(100, Math.round((c.progress || 0) * 100)));
-    [[fmt(c.raisedSol), (c.pairSymbol || 'SOL') + ' raised'], [c.migrated ? 'Graduated' : pct + '%', c.migrated ? '' : 'full']].forEach(x => {
+    [(c.pairSymbol && Number.isFinite(c.raisedUsd) ? [AnimalNet.usd(c.raisedUsd), 'raised'] : [fmt(c.raisedSol), (c.pairSymbol || 'SOL') + ' raised']), [c.migrated ? 'Graduated' : pct + '%', c.migrated ? '' : 'full']].forEach(x => {
       const d = document.createElement('span'); const v = document.createElement('b'); v.textContent = String(x[0]); d.appendChild(v); if (x[1]) d.appendChild(document.createTextNode(' ' + x[1])); nums.appendChild(d);
     });
     // The pad this coin was launched on (or the platform itself, for coins launched directly).

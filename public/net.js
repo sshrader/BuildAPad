@@ -38,6 +38,15 @@
       return s.pct + '% pad owner';
     }).join(', ');
   };
+  // Dollars, for amounts of any pool token: "$1,234", "$12.34", "$0.0028" or "under $0.0001". Empty when the price is unknown.
+  net.usd = function (n) {
+    if (typeof n !== 'number' || !isFinite(n) || n < 0) return '';
+    if (n === 0) return '$0';
+    if (n < 0.0001) return 'under $0.0001';
+    if (n < 1) return '$' + Number(n.toPrecision(2)).toString();
+    if (n < 1000) return '$' + n.toFixed(2);
+    return '$' + Math.round(n).toLocaleString();
+  };
   window.AnimalNet = net;
 
   // SOL and BTC price chips in the header, refreshed every minute. A chip stays hidden if its price cannot be read.

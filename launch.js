@@ -418,8 +418,12 @@ function createLauncher(opts) {
         const min = pump.minTokensForBuy(curve, amount, 500, pump.feeGuessBps(glob));
         if (min <= 0n) return { status: 400, body: { error: 'bad_amount' } };
         const recipients = Array.isArray(glob.buyback_fee_recipients) && glob.buyback_fee_recipients.length ? glob.buyback_fee_recipients : pump.BUYBACK_RECIPIENTS;
+        // For a coin paired with a token, the buyback fee recipient is that wallet's token account for the pair token,
+        // which the trade checks and never creates, so it is created here first if it is missing.
+        const buybackWallet = new c.web3.PublicKey(recipients[0]);
         const ixs = [c.B.createAtaIdempotent(buyerPk, buyerPk, b.pool, pump.TOKEN_2022),
-          c.B.buyExactIn({ user: buyerPk, mint: b.pool, lamports: amount, minTokensOut: min, buybackRecipient: recipients[0], quote })];
+          c.B.createAtaIdempotent(buyerPk, buybackWallet, quote.mint, quote.program),
+          c.B.buyExactIn({ user: buyerPk, mint: b.pool, lamports: amount, minTokensOut: min, buybackRecipient: c.B.ata(buybackWallet, quote.mint, quote.program), quote })];
         return { status: 200, body: { transaction: await toTx(c, budget(c, CU.buy).concat(ixs), buyerPk), partialFill: false, cluster } };
       }
       if (sol < MIN_BUY_SOL || sol > MAX_BUY_SOL) return { status: 400, body: { error: 'bad_amount' } };

@@ -240,7 +240,7 @@
         method: 'POST', headers: { 'Content-Type': 'application/json' }, body: JSON.stringify(payload)
       });
       const body = await res.json().catch(() => null);
-      if (!res.ok || !body || !body.pad) { say(WHY[body && body.error] || (editing ? 'Could not save the changes. Try again.' : 'Could not build the pad. Try again.'), true); busy = false; paint(); return; }
+      if (!res.ok || !body || !body.pad) { say((body && body.error === 'blocked_name' && body.word ? 'The word "' + body.word + '" is not allowed. Words that copy a real person, brand or project are blocked. Remove it from your name, tagline, about text, mascot or picture style.' : WHY[body && body.error]) || (editing ? 'Could not save the changes. Try again.' : 'Could not build the pad. Try again.'), true); busy = false; paint(); return; }
       const url = location.origin + '/p/' + body.pad.slug;
       $('done-title').textContent = editing ? 'Your changes are saved' : 'Your pad is live';
       $('done-url').textContent = url; $('done-url').href = '/p/' + body.pad.slug;

@@ -5,7 +5,7 @@
 const fs = require('fs');
 const path = require('path');
 const { verifySignature } = require('./sigverify');
-const { blockedWord, normalizeLinks, imageType } = require('./art');
+const { blockedWord, CHAIN_TERMS, normalizeLinks, imageType } = require('./art');
 const pads = require('./pads');
 
 const B58 = /^[1-9A-HJ-NP-Za-km-z]{32,44}$/;
@@ -73,7 +73,8 @@ function normalizeSettings(raw) {
     settings.rules.minFirstBuySol = Math.round(m * 1000) / 1000;
   }
   const texts = [settings.ai.style, settings.ai.mascotName, settings.ai.mascotPersona, settings.page.about].join(' ');
-  if (texts.trim() && blockedWord(texts)) return { error: 'blocked_name' };
+  const bw = texts.trim() ? blockedWord(texts, CHAIN_TERMS) : null;
+  if (bw) return { error: 'blocked_name', word: bw };
   return { settings };
 }
 
@@ -148,9 +149,9 @@ function createPadStore(opts) {
     if (RESERVED.has(slug)) return { status: 400, body: { error: 'slug_reserved' } };
     const name = clean(b.name, 30);
     if (name.length < 2) return { status: 400, body: { error: 'bad_name' } };
-    if (blockedWord(name + ' ' + slug)) return { status: 400, body: { error: 'blocked_name' } };
+    { const w = blockedWord(name + ' ' + slug); if (w) return { status: 400, body: { error: 'blocked_name', word: w } }; }
     const tagline = clean(b.tagline, 90);
-    if (tagline && blockedWord(tagline)) return { status: 400, body: { error: 'blocked_name' } };
+    { const w = tagline ? blockedWord(tagline, CHAIN_TERMS) : null; if (w) return { status: 400, body: { error: 'blocked_name', word: w } }; }
     const accent = typeof b.accent === 'string' && HEX6.test(b.accent) ? b.accent.toLowerCase() : '';
     if (!accent) return { status: 400, body: { error: 'bad_color' } };
     const corners = b.corners === 'sharp' ? 'sharp' : b.corners === 'round' || b.corners === undefined ? 'round' : '';
@@ -163,7 +164,7 @@ function createPadStore(opts) {
     const links = normalizeLinks(b.links === undefined ? {} : b.links);
     if (links === null) return { status: 400, body: { error: 'bad_links' } };
     const ns = normalizeSettings(b.settings);
-    if (ns.error) return { status: 400, body: { error: ns.error } };
+    if (ns.error) return { status: 400, body: { error: ns.error, word: ns.word } };
     let banner = null;
     if (b.banner !== undefined && b.banner !== null && b.banner !== '') {
       banner = readImage(b.banner, MAX_BANNER_BYTES);
@@ -212,7 +213,7 @@ function createPadStore(opts) {
     if (!verifySignature(e.ownerWallet, updateMessageFor({ slug, ownerWallet: e.ownerWallet, ts }), b.signature)) return { status: 401, body: { error: 'bad_signature' } };
 
     const tagline = clean(b.tagline === undefined ? e.tagline : b.tagline, 90);
-    if (tagline && blockedWord(tagline)) return { status: 400, body: { error: 'blocked_name' } };
+    { const w = tagline ? blockedWord(tagline, CHAIN_TERMS) : null; if (w) return { status: 400, body: { error: 'blocked_name', word: w } }; }
     const accent = b.accent === undefined ? e.accent : (typeof b.accent === 'string' && HEX6.test(b.accent) ? b.accent.toLowerCase() : '');
     if (!accent) return { status: 400, body: { error: 'bad_color' } };
     const corners = b.corners === undefined ? e.corners : b.corners === 'sharp' || b.corners === 'round' ? b.corners : '';
@@ -220,7 +221,7 @@ function createPadStore(opts) {
     const links = b.links === undefined ? (e.links || {}) : normalizeLinks(b.links);
     if (links === null) return { status: 400, body: { error: 'bad_links' } };
     const ns = b.settings === undefined ? { settings: settingsOf(e) } : normalizeSettings(b.settings);
-    if (ns.error) return { status: 400, body: { error: ns.error } };
+    if (ns.error) return { status: 400, body: { error: ns.error, word: ns.word } };
     let logo = null, banner = null;
     if (b.logo !== undefined && b.logo !== null && b.logo !== '') { logo = readImage(b.logo, MAX_LOGO_BYTES); if (!logo) return { status: 400, body: { error: 'bad_logo' } }; }
     if (b.banner !== undefined && b.banner !== null && b.banner !== '') { banner = readImage(b.banner, MAX_BANNER_BYTES); if (!banner) return { status: 400, body: { error: 'bad_banner' } }; }

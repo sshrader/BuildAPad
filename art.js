@@ -86,10 +86,16 @@ function normalizeLinks(input) {
   return out;
 }
 
-function blockedWord(text) {
-  const t = text.toLowerCase();
-  return BLOCKED.find(w => t.includes(w)) || null;
+// The blocked words match as whole words, so "pepper" or "melon" are fine. Chain names (Solana, Bitcoin...) can be allowed
+// for descriptions and taglines by passing them in `allow`, since they are not copies of anything there.
+const esc = w => w.replace(/[.*+?^${}()|[\]\\]/g, '\\$&');
+const BLOCKED_RE = BLOCKED.map(w => ({ w, re: new RegExp('(^|[^a-z0-9])' + esc(w) + '([^a-z0-9]|$)', 'i') }));
+function blockedWord(text, allow) {
+  const t = String(text || '');
+  const hit = BLOCKED_RE.find(b => (!allow || !allow.includes(b.w)) && b.re.test(t));
+  return hit ? hit.w : null;
 }
+const CHAIN_TERMS = ['solana', 'bitcoin', 'ethereum', 'pump.fun', 'pumpfun'];
 
 function limiter(max, windowMs, now) {
   const hits = new Map();
@@ -485,4 +491,4 @@ function createArt(opts) {
   return { info, generate, chat, suggest, report, get, record, pin, seed, setLinks, prune, provider, reason };
 }
 
-module.exports = { createArt, ID_RE, blockedWord, normalizeLinks, imageType };
+module.exports = { createArt, ID_RE, blockedWord, CHAIN_TERMS, normalizeLinks, imageType };

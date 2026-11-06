@@ -550,3 +550,12 @@ test('the Lute referral path redirects without showing the handle on the page', 
     assert.match(r.headers.get('location'), /^https:\/\/lute\.gg\//);
   });
 });
+
+test('blocked words match whole words only, and chain names can be allowed', () => {
+  const { blockedWord, CHAIN_TERMS } = require('../art.js');
+  assert.equal(blockedWord('Bjorn the viking mascot'), null);
+  assert.equal(blockedWord('pepper and melon and a trumpet'), null);
+  assert.equal(blockedWord('a pokemon trainer'), 'pokemon');
+  assert.equal(blockedWord('Solana stocks pad'), 'solana');
+  assert.equal(blockedWord('Solana stocks pad', CHAIN_TERMS), null);
+});

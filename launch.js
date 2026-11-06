@@ -629,10 +629,11 @@ function createLauncher(opts) {
         // A coin that graduated to its trading pool pays its fees out on pump.fun, so nothing can be sent out here.
         const done = Boolean(curve.complete);
         const total = done ? 0 : await pending(c, mint, curve);
-        list.push({ pool: mint, preset: '', waitingSol: total * platformPct / 100, totalSol: total, migrated: done });
+        const paired = Boolean(await quoteOfCurve(c, curve));
+        list.push({ pool: mint, preset: '', waitingSol: total * platformPct / 100, totalSol: total, migrated: done, paired });
       }
       list.sort((a, b) => b.waitingSol - a.waitingSol);
-      return { status: 200, body: { feeClaimers: [platformWallet], pools: list, totalWaitingSol: list.reduce((s, p) => s + p.waitingSol, 0), cluster } };
+      return { status: 200, body: { feeClaimers: [platformWallet], pools: list, totalWaitingSol: list.reduce((s, p) => s + (p.paired ? 0 : p.waitingSol), 0), cluster } };
     } catch (err) {
       logger.error('Partner fee read failed: ' + (err && err.stack ? err.stack : 'unknown error'));
       return { status: 502, body: { error: 'fees_read_failed' } };

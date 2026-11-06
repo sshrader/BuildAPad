@@ -38,7 +38,7 @@
     const a = document.createElement('span'); a.textContent = p.pool;
     who.appendChild(b); who.appendChild(a);
     const amt = document.createElement('div'); amt.className = 'amt';
-    amt.textContent = p.migrated ? 'Graduated: fees are paid out on pump.fun' : fmt(p.waitingSol) + ' SOL waiting · ' + fmt(p.totalSol) + ' all-time';
+    amt.textContent = p.migrated ? 'Graduated: fees are paid out on pump.fun' : fmt(p.waitingSol) + (p.paired ? ' of its pair token' : ' SOL') + ' waiting · ' + fmt(p.totalSol) + ' all-time';
     const btn = document.createElement('button');
     btn.type = 'button'; btn.className = 'btn'; btn.textContent = 'Send out';
     btn.disabled = busy || !(p.waitingSol > 0);
@@ -57,7 +57,7 @@
     $('body').hidden = !allowed;
     if (!allowed) return;
     const waiting = data.pools.filter(p => p.waitingSol > 0);
-    $('total').textContent = fmt(data.totalWaitingSol);
+    $('total').textContent = fmt(data.totalWaitingSol) + (data.pools.some(p => p.paired && p.waitingSol > 0) ? ' (SOL coins only; pair-token coins are listed separately)' : '');
     $('count').textContent = String(data.pools.length);
     $('claim-all').disabled = busy || !waiting.length;
     $('reload').disabled = busy;

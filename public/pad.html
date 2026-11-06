@@ -121,7 +121,7 @@
   <details class="panel trade" id="trade">
     <summary>Trade a coin by its address</summary>
     <div class="trade-body">
-      <p class="hint">Paste a coin address (CA), see how full its curve is, and buy with SOL. Your wallet signs; nothing is sent without your approval.</p>
+      <p class="hint">Paste a coin address (CA), see how full its curve is, and buy it. Your wallet signs; nothing is sent without your approval.</p>
       <div class="trade-row">
         <input type="text" id="t-pool" placeholder="Coin address" autocomplete="off" spellcheck="false" aria-label="Coin address">
         <button type="button" class="btn" id="t-load">Load</button>
@@ -131,7 +131,7 @@
         <p class="dl-status" id="t-prog"></p>
         <div class="trade-row">
           <input type="number" id="t-amt" value="0.1" step="any" inputmode="decimal" aria-label="Amount in SOL">
-          <span class="hint">SOL</span>
+          <span class="hint" id="t-unit">SOL</span>
           <button type="button" class="btn go" id="t-buy">Buy</button>
         </div>
       </div>

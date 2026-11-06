@@ -45,8 +45,10 @@
     if (!pool) return;
     const pct = Math.round(pool.progress * 100);
     $('t-bar').style.width = pct + '%';
-    $('t-prog').textContent = pool.raisedSol.toFixed(3) + ' of ' + pool.thresholdSol.toFixed(3) + ' ' + (pool.paired ? 'of the pair token' : 'SOL') + ' raised · ' + pct + '%' +
+    $('t-prog').textContent = pool.raisedSol.toFixed(3) + ' of ' + pool.thresholdSol.toFixed(3) + ' ' + (pool.paired ? (pool.pairSymbol || 'of the pair token') : 'SOL') + ' raised · ' + pct + '%' +
       (pool.migrated ? ' · moved to its DEX pool' : pool.curveFull ? ' · curve full' : '');
+    const unit = pool.paired ? (pool.pairSymbol || 'pair token') : 'SOL';
+    if ($('t-unit')) $('t-unit').textContent = unit;
     $('t-amt').setAttribute('aria-label', pool.paired ? 'Amount in the pair token' : 'Amount in SOL');
     $('t-buy').disabled = busy || pool.curveFull;
   }
@@ -77,7 +79,7 @@
   function renderFees() {
     $('t-fees').hidden = !feeInfo;
     if (!feeInfo) return;
-    $('t-fee-text').textContent = 'Creator fees waiting: ' + feeInfo.pendingSol.toFixed(6) + (feeInfo.paired ? ' (pair token)' : ' SOL') +
+    $('t-fee-text').textContent = 'Creator fees waiting: ' + feeInfo.pendingSol.toFixed(6) + (feeInfo.paired ? ' ' + (feeInfo.pairSymbol || 'pair token') : ' SOL') +
       (feeInfo.splitOk ? ' · split ' + window.feeLine(feeInfo) : ' · fee split not set yet');
     $('t-claim').disabled = busy || !feeInfo.splitOk || !(feeInfo.pendingSol > 0.00001);
   }

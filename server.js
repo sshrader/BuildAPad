@@ -580,7 +580,17 @@ function createApp(opts) {
       const run = pathname === '/api/launch/status' ? launcher.status(url.searchParams.get('sig'), ctx)
         : pathname === '/api/launch/fees' ? launcher.fees(url.searchParams.get('address'), ctx)
         : launcher.pool(url.searchParams.get('address'), ctx);
-      run.then(r => send(res, r.status, req.method === 'HEAD' ? '' : JSON.stringify(r.body), noStore))
+      run.then(async r => {
+        // A coin paired with a token: add that token's symbol (from the coin's pad) so the page can name the unit.
+        if (r.status === 200 && r.body && r.body.paired && launches && padStore) {
+          try {
+            const d = await launches.detail(r.body.mint);
+            if (d.status === 200 && d.body.pairSymbol === undefined && d.body.pad) { const set = padStore.settings(d.body.pad); if (set && set.pair && set.pair.symbol) r.body.pairSymbol = set.pair.symbol; }
+            else if (d.status === 200 && d.body.pairSymbol) r.body.pairSymbol = d.body.pairSymbol;
+          } catch (e) { /* the page falls back to "pair token" */ }
+        }
+        return r;
+      }).then(r => send(res, r.status, req.method === 'HEAD' ? '' : JSON.stringify(r.body), noStore))
         .catch(() => send(res, 500, JSON.stringify({ error: 'server_error' }), noStore));
       return;
     }

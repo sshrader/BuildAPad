@@ -491,15 +491,19 @@ function createApp(opts) {
     if (pathname === '/api/leaderboard') {
       const hdr = Object.assign({}, JSON_TYPE, { 'Cache-Control': 'public, max-age=15' });
       const out = () => {
-        const b = launches ? launches.board(10) : { rows: [], totalCoins: 0, totalRaisedSol: 0 };
+        const b = launches ? launches.board(50) : { rows: [], totalCoins: 0, totalRaisedSol: 0 };
         const rows = b.rows.map(r => { const p = padStore ? padStore.get(r.slug) : null; return p ? Object.assign({ name: p.name, accent: p.accent, logoUrl: p.logoUrl, tagline: p.tagline, pairSymbol: (padStore.settings(r.slug).pair || {}).symbol || '' }, r) : null; }).filter(Boolean);
+        // Pools in different pair tokens cannot be added or compared by amount, so pads rank by coins launched, then graduated coins, and only SOL pads use SOL raised as the last tie-break.
+        rows.sort((x, y) => (y.coins - x.coins) || (y.graduated - x.graduated) || ((y.pairSymbol ? 0 : y.raisedSol) - (x.pairSymbol ? 0 : x.raisedSol)));
+        const pairedRaised = rows.filter(r => r.pairSymbol).reduce((n, r) => n + (r.raisedSol || 0), 0);
+        rows.length = Math.min(rows.length, 10);
         // The official coin (and any older attempt at it) stays off the list: it has its own card above.
         const old = new Set(founder && launches ? launches.findAllByArt(founder.id).concat(launches.findAllBySymbol(founder.ticker)).map(e => e.pool) : []);
-        const coins = (launches ? launches.topCoins(40) : []).filter(c => !old.has(c.pool)).slice(0, 20).map(c => {
+        const coins = (launches ? launches.topCoins(200) : []).filter(c => !old.has(c.pool)).sort((x, y) => (Number(y.migrated) - Number(x.migrated)) || ((y.progress || 0) - (x.progress || 0)) || ((y.raisedSol || 0) - (x.raisedSol || 0))).slice(0, 20).map(c => {
           const p = c.pad && padStore ? padStore.get(c.pad) : null;
           return Object.assign({}, c, { padName: p ? p.name : '', padAccent: p ? p.accent : '', pairSymbol: p ? ((padStore.settings(c.pad) || {}).pair || {}).symbol || '' : '' });
         });
-        return JSON.stringify({ pads: rows, coins: coins, stats: { pads: padStore ? padStore.size() : 0, coins: b.totalCoins, raisedSol: b.totalRaisedSol } });
+        return JSON.stringify({ pads: rows, coins: coins, stats: { pads: padStore ? padStore.size() : 0, coins: b.totalCoins, raisedSol: Math.max(0, b.totalRaisedSol - pairedRaised) } });
       };
       // Looking at the recent launches first keeps the raised amounts fresh (this is cached, so it is cheap).
       (launches ? launches.list('').catch(() => []) : Promise.resolve([])).then(() => send(res, 200, req.method === 'HEAD' ? '' : out(), hdr))

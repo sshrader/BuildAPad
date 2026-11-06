@@ -128,7 +128,7 @@
     tab = v;
     $('boardlist').hidden = v !== 'pads'; $('coinlist').hidden = v !== 'coins';
     document.querySelectorAll('#board-tabs button').forEach(b => { const on = b.dataset.v === v; b.setAttribute('aria-pressed', String(on)); b.setAttribute('aria-selected', String(on)); });
-    $('board-sub').textContent = v === 'pads' ? 'Pads ranked by coins launched on them, then by SOL raised.' : 'Coins ranked by SOL raised on their curves, with the pad each one launched on.';
+    $('board-sub').textContent = v === 'pads' ? 'Pads ranked by coins launched on them, then by graduated coins.' : 'Coins ranked by how full their curves are, with the pad each one launched on.';
     const n = board ? (v === 'pads' ? (board.pads || []).length : (board.coins || []).length) : 0;
     $('board-note').textContent = !board ? 'Loading…' : n ? '' : v === 'pads' ? 'No coins launched yet. The first pad to launch a coin takes the top spot.' : 'No coins launched yet. The first coin on the board takes the top spot.';
   }

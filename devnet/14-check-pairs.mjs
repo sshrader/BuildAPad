@@ -10,40 +10,33 @@ const pump = require('../pump.js');
 const { PublicKey } = web3;
 const B = pump.createBuilder(web3);
 
-const show = async (label, list) => {
-  console.log('\n' + label + ': ' + list.length);
-  for (const m of list) {
-    const addr = m.toBase58();
-    const info = await connection.getAccountInfo(new PublicKey(addr)).catch(() => null);
-    const prog = info ? (info.owner.toBase58().startsWith('TokenzQ') ? 'Token-2022' : 'SPL Token') : 'not found on this network';
-    const dec = info && info.data.length >= 45 ? info.data[44] : '?';
-    console.log('  ' + addr + '  ' + prog + '  decimals ' + dec);
-  }
-};
-
 console.log('Network:', CLUSTER);
 const g = await connection.getAccountInfo(B.globalPda());
 if (!g) { console.log('pump.fun global account not found on this network.'); process.exit(0); }
-const glob = pump.decodeAccount(pump.IDLS.pump, 'Global', g.data, web3);
-const white = (glob.whitelisted_quote_mints || []).filter(k => k && k.toBase58 && k.toBase58() !== '11111111111111111111111111111111');
-await show('Whitelisted pairs (Global)', white);
-console.log('\nmax_curve_depth:', String(glob.max_curve_depth), ' creator_fee_configurable:', String(glob.creator_fee_configurable));
-
 const [qc] = PublicKey.findProgramAddressSync([Buffer.from('quote-control')], new PublicKey(pump.PUMP));
 const q = await connection.getAccountInfo(qc);
-if (!q) { console.log('\nNo quote-control account on this network (no custom pairs set up).'); process.exit(0); }
-const ctl = pump.decodeAccount(pump.IDLS.pump, 'QuoteControl', q.data, web3);
-await show('Custom pairs (quote-control)', (ctl.mints || []).map(x => x.mint));
+if (!q) { console.log('No quote-control account on this network (no custom pairs set up).'); process.exit(0); }
 
-// Extra: look for well-known mints inside the raw account bytes, in case the layout in our program file is out of date.
-const KNOWN = { USDC: 'EPjFWdd5AufqSSqeM2qN1xzybapC8G4wEGGkZwyTDt1v', USDT: 'Es9vMFrzaCERmJfrF4H2FYD4KCoNkY11McCe8BenwNYB', WSOL: 'So11111111111111111111111111111111111111112' };
-const scan = (label, data) => {
-  console.log('\n' + label + ': ' + data.length + ' bytes');
-  for (const [n, a] of Object.entries(KNOWN)) {
-    const at = Buffer.from(data).indexOf(new PublicKey(a).toBuffer());
-    console.log('  contains ' + n + ': ' + (at >= 0 ? 'yes, at byte ' + at : 'no'));
-  }
-};
-scan('Global account', g.data);
-scan('quote-control account', q.data);
-console.log('quote-control address:', qc.toBase58());
+// The list is read by hand: 8 byte tag, admin, reserves admin, 32 reserved bytes, a u32 count, then 40 bytes per pair (mint + starting reserve).
+const d = Buffer.from(q.data);
+const count = d.readUInt32LE(8 + 32 + 32 + 32);
+const start = 8 + 32 + 32 + 32 + 4;
+const mints = [];
+for (let i = 0; i < count && start + (i + 1) * 40 <= d.length; i++) {
+  const at = start + i * 40;
+  mints.push({ mint: new PublicKey(d.subarray(at, at + 32)).toBase58(), reserve: d.readBigUInt64LE(at + 32).toString() });
+}
+console.log('Custom pairs (quote-control):', mints.length, '(account says ' + count + ')');
+
+// Names and symbols, when the RPC supports the "DAS" lookup (Helius does). Otherwise only addresses show.
+let meta = {};
+try {
+  const res = await fetch(process.env.RPC_URL, { method: 'POST', headers: { 'Content-Type': 'application/json' }, body: JSON.stringify({ jsonrpc: '2.0', id: 1, method: 'getAssetBatch', params: { ids: mints.map(m => m.mint) } }) });
+  const j = await res.json();
+  (j.result || []).forEach(a => { if (a && a.id) meta[a.id] = ((a.content && a.content.metadata && a.content.metadata.symbol) || '?') + ' - ' + ((a.content && a.content.metadata && a.content.metadata.name) || '?'); });
+} catch (e) { console.log('(names not available from this RPC)'); }
+for (const m of mints) console.log('  ' + m.mint + '  ' + (meta[m.mint] || ''));
+
+const gl = Buffer.from(g.data);
+const usdc = gl.indexOf(new PublicKey('EPjFWdd5AufqSSqeM2qN1xzybapC8G4wEGGkZwyTDt1v').toBuffer());
+console.log('\nUSDC is built in at byte ' + usdc + ' of the main account.');

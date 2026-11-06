@@ -158,9 +158,9 @@
       say('Sent. Waiting for the network to confirm…');
       const state = await W.confirm(signature);
       if (state === 'confirmed') {
-        say('Bought ✓ ' + sol + ' SOL on the curve.' + (data.partialFill ? ' This buy filled the curve, so only part of it was used.' : ''));
+        say('Bought ✓ ' + sol + ' ' + (pool.paired ? (pool.pairSymbol || 'of the pair token') : 'SOL') + ' on the curve.' + (data.partialFill ? ' This buy filled the curve, so only part of it was used.' : ''));
         await load(pool.address);
-        say('Bought ✓ ' + sol + ' SOL on the curve.' + (data.partialFill ? ' This buy filled the curve, so only part of it was used.' : ''));
+        say('Bought ✓ ' + sol + ' ' + (pool.paired ? (pool.pairSymbol || 'of the pair token') : 'SOL') + ' on the curve.' + (data.partialFill ? ' This buy filled the curve, so only part of it was used.' : ''));
       } else if (state === 'failed') {
         say('', false);
         fail('The buy failed on-chain. The curve may have changed. Reload the pool and try again.');

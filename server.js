@@ -473,8 +473,8 @@ function createApp(opts) {
       const out = () => {
         const b = launches ? launches.board(10) : { rows: [], totalCoins: 0, totalRaisedSol: 0 };
         const rows = b.rows.map(r => { const p = padStore ? padStore.get(r.slug) : null; return p ? Object.assign({ name: p.name, accent: p.accent, logoUrl: p.logoUrl, tagline: p.tagline }, r) : null; }).filter(Boolean);
-        // Older attempts at the official coin (same picture) stay off the list; only the real one is shown.
-        const old = new Set(founder && launches ? launches.findAllByArt(founder.id).concat(launches.findAllBySymbol(founder.ticker)).map(e => e.pool).filter(p => !founderDone || p !== founderDone.pool) : []);
+        // The official coin (and any older attempt at it) stays off the list: it has its own card above.
+        const old = new Set(founder && launches ? launches.findAllByArt(founder.id).concat(launches.findAllBySymbol(founder.ticker)).map(e => e.pool) : []);
         const coins = (launches ? launches.topCoins(40) : []).filter(c => !old.has(c.pool)).slice(0, 20).map(c => {
           const p = c.pad && padStore ? padStore.get(c.pad) : null;
           return Object.assign({}, c, { padName: p ? p.name : '', padAccent: p ? p.accent : '' });

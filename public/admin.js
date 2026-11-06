@@ -41,7 +41,7 @@
     const a = document.createElement('span'); a.textContent = p.pool;
     who.appendChild(b); who.appendChild(a);
     const amt = document.createElement('div'); amt.className = 'amt';
-    amt.textContent = p.migrated ? 'Graduated: fees are paid out on pump.fun' : fmt(p.waitingSol) + (p.paired ? ' of its pair token' : ' SOL') + ' waiting · ' + fmt(p.totalSol) + ' all-time';
+    amt.textContent = p.migrated ? 'Graduated: fees are paid out on pump.fun' : fmt(p.waitingSol) + (p.paired ? ' of its pair token' : ' SOL') + ' your share · ' + fmt(p.totalSol) + ' waiting in total';
     const btn = document.createElement('button');
     btn.type = 'button'; btn.className = 'btn'; btn.textContent = 'Send out';
     btn.disabled = busy || !claimable(p);

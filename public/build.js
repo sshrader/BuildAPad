@@ -30,7 +30,7 @@
   }
   // Pool pair picker, filled from pump.fun's list. SOL by default; two checkboxes reveal the stock list and the crypto/memes/others list.
   // Hidden when the list is not available on this server.
-  let pairsAll = [], pairsLoaded = false, pendingPair = '';
+  let pairsAll = [], pairsLoaded = false, pendingPair = '', pairsLaunchReady = true;
   const KINDS = { sol: 'f-pair-sol', stock: 'f-pair-stock', other: 'f-pair-other' };
   // Only one box can be ticked at a time. Unticking the ticked one puts it back on SOL.
   function pickKind(k) { Object.keys(KINDS).forEach(x => { $(KINDS[x]).checked = x === k; }); if (k === 'sol') pendingPair = ''; paintPairs(); }
@@ -71,6 +71,7 @@
     if (document.activeElement !== box || !comboOpen) box.value = chosen ? labelOf(chosen) : '';
     box.placeholder = on.stock ? 'Search stocks by name or ticker' : 'Search by name or ticker';
     $('f-pair-now').textContent = chosen ? 'Pair: ' + chosen.symbol + ' · ' + chosen.name : ''; $('f-pair-now').hidden = !chosen;
+    $('f-pair-note').textContent = pairsLaunchReady ? 'Coins on this pad trade against this token, not SOL. Buyers need to hold it to buy, and creator fees are paid out in it.' : 'Preview only: this site runs on a test network, where this token does not exist, so coins cannot be launched on this pad here. Launching with a pair works on a mainnet site.';
     $('f-pair-note').hidden = !chosen;
     $('f-pair-chose').hidden = !(on.stock || on.other) || Boolean(chosen);
   }
@@ -80,7 +81,7 @@
     pickKind(hit ? hit.kind : 'sol');
   }
   fetch('/api/pairs', { headers: { Accept: 'application/json' } }).then(r => r.json()).then(b => {
-    pairsAll = (b && b.pairs) || [];
+    pairsAll = (b && b.pairs) || []; pairsLaunchReady = !b || b.launchReady !== false;
     if (!pairsAll.length) return;
     pairsLoaded = true; $('g-pair-box').hidden = false; syncPairBoxes();
     const box = $('f-pair-q');

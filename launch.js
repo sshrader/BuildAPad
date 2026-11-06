@@ -559,7 +559,7 @@ function createLauncher(opts) {
         const name = m.name.replace(/[\u0000-\u001f<>]/g, '').slice(0, 60) || symbol;
         return { mint: x.mint, symbol, name, kind: /stock|securities|\betf\b/i.test(m.name) ? 'stock' : 'other' };
       }).filter(x => o.showStocks || x.kind !== 'stock').sort((a, b) => (a.kind === b.kind ? a.symbol.localeCompare(b.symbol) : a.kind === 'stock' ? -1 : 1));
-      const value = { pairs: out, cluster: pairsRpc === rpcUrl ? cluster : 'mainnet-beta', launchReady: false };
+      const value = { pairs: out, cluster: pairsRpc === rpcUrl ? cluster : 'mainnet-beta', launchReady: pairsRpc === rpcUrl };
       pairsCache = { at: nowMs, value };
       return { status: 200, body: value };
     } catch (err) {

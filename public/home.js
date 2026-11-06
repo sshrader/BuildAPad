@@ -59,7 +59,7 @@
     const b = document.createElement('b'); b.textContent = p.name;
     const sm = document.createElement('small'); sm.textContent = '/p/' + p.slug;
     nm.appendChild(b); nm.appendChild(sm);
-    if (p.pairSymbol) { const pc = document.createElement('span'); pc.className = 'pairchip'; pc.textContent = p.pairSymbol + ' pair'; nm.appendChild(pc); }
+    { const pc = document.createElement('span'); pc.className = 'pairchip'; pc.textContent = p.pairSymbol ? p.pairSymbol + ' pair' + (p.pairKind === 'stock' ? ' · Stock' : p.pairKind === 'other' ? ' · Crypto / Memes' : '') : 'SOL pair'; nm.appendChild(pc); }
     if (p.launcherPct !== null && p.launcherPct !== undefined) { const fc = document.createElement('span'); fc.className = 'pairchip feechip'; fc.textContent = 'Launcher ' + p.launcherPct + '% · Owner ' + p.ownerPct + '% · ' + window.PAD.platform + ' ' + p.platformPct + '%'; fc.title = p.launcherPct + '% coin launcher · ' + p.ownerPct + '% pad owner · ' + p.platformPct + '% ' + window.PAD.platform + ' (of creator fees, set on-chain at launch)'; nm.appendChild(fc); }
     a.appendChild(logo); a.appendChild(nm);
     const nums = document.createElement('span'); nums.className = 'bnums';
@@ -109,7 +109,7 @@
     const b = document.createElement('b'); b.textContent = c.name;
     const sm = document.createElement('small'); sm.textContent = '$' + c.symbol;
     nm.appendChild(b); nm.appendChild(sm);
-    if (c.pairSymbol) { const pc = document.createElement('span'); pc.className = 'pairchip'; pc.textContent = c.pairSymbol + ' pair'; nm.appendChild(pc); }
+    { const pc = document.createElement('span'); pc.className = 'pairchip'; pc.textContent = c.pairSymbol ? c.pairSymbol + ' pair' + (c.pairKind === 'stock' ? ' · Stock' : c.pairKind === 'other' ? ' · Crypto / Memes' : '') : 'SOL pair'; nm.appendChild(pc); }
     if (c.launcherPct !== null && c.launcherPct !== undefined) { const fc = document.createElement('span'); fc.className = 'pairchip feechip'; fc.textContent = 'Launcher ' + c.launcherPct + '% · Owner ' + c.ownerPct + '% · ' + window.PAD.platform + ' ' + c.platformPct + '%'; fc.title = c.launcherPct + '% coin launcher · ' + c.ownerPct + '% pad owner · ' + c.platformPct + '% ' + window.PAD.platform + ' (of creator fees, set on-chain at launch)'; nm.appendChild(fc); }
     a.appendChild(logo); a.appendChild(nm);
     const nums = document.createElement('span'); nums.className = 'bnums';

@@ -126,13 +126,18 @@
 
       <section class="group" id="g-pair-box" aria-labelledby="g-pair" hidden>
         <h3 id="g-pair">Pool pair</h3>
-        <p class="hint">What every coin on your pad trades against. SOL is the default. Pick a stock, crypto or other pair from pump.fun's list to build a themed pad.</p>
-        <label class="field">Pair
-          <select id="f-pair"><option value="">SOL (default)</option></select>
-        </label>
-        <label class="field sub" id="f-pair-q-wrap">Search the list
-          <input type="text" id="f-pair-q" placeholder="Tesla, BTC, NVDA…" autocomplete="off" spellcheck="false">
-        </label>
+        <p class="hint">What every coin on your pad trades against. It is SOL unless you pick something else.</p>
+        <p class="pairnow" id="f-pair-now">SOL (default)</p>
+        <label class="check"><input type="checkbox" id="f-pair-stock"> Pair with a stock</label>
+        <label class="check"><input type="checkbox" id="f-pair-other"> Pair with crypto, memes or others</label>
+        <div class="field sub" id="f-pair-pick" hidden>
+          <label class="field">Search the list
+            <input type="text" id="f-pair-q" placeholder="Tesla, BTC, NVDA…" autocomplete="off" spellcheck="false">
+          </label>
+          <label class="field">Pick one
+            <select id="f-pair"><option value="">SOL (default)</option></select>
+          </label>
+        </div>
         <p class="hint" id="f-pair-note" hidden>Preview: coins on a paired pad cannot be launched yet. Launching with a pair is still being built and tested, so keep SOL for a live pad.</p>
       </section>
 

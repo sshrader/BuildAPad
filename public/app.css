@@ -338,3 +338,4 @@ label.check, .links-body label.check, .fields label.check { display: flex; flex-
 
 .chip-price { display: inline-flex; align-items: center; gap: 7px; padding: 4px 10px; border: 1px solid var(--line); border-radius: 999px; color: var(--text); font-size: 13px; font-weight: 600; background: var(--paper); font-variant-numeric: tabular-nums; white-space: nowrap; }
 .chip-price i { width: 14px; height: 14px; border-radius: 50%; flex: none; }
+.pairnow { margin: 0; font-weight: 600; }

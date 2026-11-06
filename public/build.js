@@ -28,29 +28,45 @@
     parts.forEach(a => { if (!B58.test(a)) bad.push(a); else if (!list.includes(a)) list.push(a); });
     return { list: list, bad: bad };
   }
-  // Pool pair picker, filled from pump.fun's list. Hidden when the list is not available on this server.
+  // Pool pair picker, filled from pump.fun's list. SOL by default; two checkboxes reveal the stock list and the crypto/memes/others list.
+  // Hidden when the list is not available on this server.
   let pairsAll = [], pairsLoaded = false, pendingPair = '';
+  const KINDS = { stock: 'f-pair-stock', other: 'f-pair-other' };
   function paintPairs() {
-    const sel = $('f-pair'), q = $('f-pair-q').value.trim().toLowerCase(), cur = sel.value || pendingPair;
+    const sel = $('f-pair'), q = $('f-pair-q').value.trim().toLowerCase();
+    const on = { stock: isOn(KINDS.stock), other: isOn(KINDS.other) };
+    $('f-pair-pick').hidden = !(on.stock || on.other);
+    const cur = pendingPair;
     sel.textContent = '';
     const none = document.createElement('option'); none.value = ''; none.textContent = 'SOL (default)'; sel.appendChild(none);
-    const groups = { stock: 'Stocks', other: 'Crypto and others' };
+    const groups = { stock: 'Stocks', other: 'Crypto, memes and others' };
     ['stock', 'other'].forEach(k => {
+      if (!on[k]) return;
       const items = pairsAll.filter(p => p.kind === k && (!q || (p.symbol + ' ' + p.name).toLowerCase().indexOf(q) >= 0 || p.mint === cur));
       if (!items.length) return;
       const g = document.createElement('optgroup'); g.label = groups[k];
       items.forEach(p => { const o = document.createElement('option'); o.value = p.mint; o.textContent = p.symbol + ' · ' + p.name; g.appendChild(o); });
       sel.appendChild(g);
     });
-    sel.value = cur && pairsAll.some(p => p.mint === cur) ? cur : '';
-    $('f-pair-note').hidden = !sel.value;
+    if (!Array.from(sel.options).some(o => o.value === cur)) pendingPair = '';
+    sel.value = pendingPair;
+    const chosen = pairsAll.find(p => p.mint === pendingPair);
+    $('f-pair-now').textContent = chosen ? chosen.symbol + ' · ' + chosen.name : 'SOL (default)';
+    $('f-pair-note').hidden = !chosen;
+  }
+  function syncPairBoxes() {
+    // Opening an existing pad: tick the box that holds its pair.
+    const hit = pairsAll.find(p => p.mint === pendingPair);
+    if (hit) $(KINDS[hit.kind]).checked = true;
+    paintPairs();
   }
   fetch('/api/pairs', { headers: { Accept: 'application/json' } }).then(r => r.json()).then(b => {
     pairsAll = (b && b.pairs) || [];
     if (!pairsAll.length) return;
-    pairsLoaded = true; $('g-pair-box').hidden = false; paintPairs();
-    $('f-pair').addEventListener('change', () => { pendingPair = $('f-pair').value; $('f-pair-note').hidden = !pendingPair; });
-    $('f-pair-q').addEventListener('input', () => { pendingPair = $('f-pair').value; paintPairs(); });
+    pairsLoaded = true; $('g-pair-box').hidden = false; syncPairBoxes();
+    $('f-pair').addEventListener('change', () => { pendingPair = $('f-pair').value; paintPairs(); });
+    $('f-pair-q').addEventListener('input', paintPairs);
+    [KINDS.stock, KINDS.other].forEach(id => $(id).addEventListener('change', () => { if (!isOn(id) && !isOn(KINDS.stock) && !isOn(KINDS.other)) pendingPair = ''; paintPairs(); }));
   }).catch(() => { /* picker stays hidden */ });
 
   const isOn = id => $(id).checked;
@@ -60,7 +76,7 @@
       rules: { requireFirstBuy: isOn('f-rule-buy'), minFirstBuySol: Number($('f-rule-min').value) },
       access: { allow: parseWallets($('f-allow').value).list, deny: parseWallets($('f-deny').value).list },
       page: { about: $('f-about').value.trim() },
-      pair: { mint: $('f-pair').value }
+      pair: { mint: pendingPair }
     };
   }
 
@@ -255,7 +271,7 @@
     $('f-rule-buy').checked = Boolean(rules.requireFirstBuy); if (rules.minFirstBuySol) $('f-rule-min').value = String(rules.minFirstBuySol);
     $('f-allow').value = (acc.allow || []).join('\n'); $('f-deny').value = (acc.deny || []).join('\n');
     $('f-about').value = (s.page && s.page.about) || '';
-    pendingPair = (s.pair && s.pair.mint) || ''; if (pairsLoaded) $('f-pair').value = pendingPair;
+    pendingPair = (s.pair && s.pair.mint) || ''; if (pairsLoaded) syncPairBoxes();
     $('f-drop-img').src = p.logoUrl; $('f-drop-img').hidden = false; $('f-drop-empty').hidden = true;
     $('pv-img').src = p.logoUrl; $('pv-img').hidden = false; $('pv-letter').hidden = true;
     if (p.bannerUrl) { $('f-bdrop-img').src = p.bannerUrl; $('f-bdrop-img').hidden = false; $('f-bdrop-empty').hidden = true; }

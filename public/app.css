@@ -353,3 +353,5 @@ label.check, .links-body label.check, .fields label.check { display: flex; flex-
 .feelist { margin: 0; padding-left: 20px; display: grid; gap: 8px; color: var(--muted); }
 .feelist b { color: var(--text); }
 #fees-example b { font-family: var(--mono); font-weight: 600; }
+
+.feechip { margin-left: 0; }

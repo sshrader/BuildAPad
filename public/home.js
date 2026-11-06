@@ -60,6 +60,7 @@
     const sm = document.createElement('small'); sm.textContent = '/p/' + p.slug;
     nm.appendChild(b); nm.appendChild(sm);
     if (p.pairSymbol) { const pc = document.createElement('span'); pc.className = 'pairchip'; pc.textContent = p.pairSymbol + ' pair'; nm.appendChild(pc); }
+    if (p.launcherPct !== null && p.launcherPct !== undefined) { const fc = document.createElement('span'); fc.className = 'pairchip feechip'; fc.textContent = 'Launcher keeps ' + p.launcherPct + '%'; fc.title = p.launcherPct + '% coin launcher · ' + p.ownerPct + '% pad owner · ' + p.platformPct + '% ' + window.PAD.platform + ' (of creator fees, set on-chain at launch)'; nm.appendChild(fc); }
     a.appendChild(logo); a.appendChild(nm);
     const nums = document.createElement('span'); nums.className = 'bnums';
     [[p.coins, p.coins === 1 ? 'coin' : 'coins'], (p.pairSymbol && Number.isFinite(p.raisedUsd) ? [AnimalNet.usd(p.raisedUsd), 'raised'] : [fmt(p.raisedSol), (p.pairSymbol || 'SOL') + ' raised']), [p.graduated, 'graduated']].forEach(x => {
@@ -109,6 +110,7 @@
     const sm = document.createElement('small'); sm.textContent = '$' + c.symbol;
     nm.appendChild(b); nm.appendChild(sm);
     if (c.pairSymbol) { const pc = document.createElement('span'); pc.className = 'pairchip'; pc.textContent = c.pairSymbol + ' pair'; nm.appendChild(pc); }
+    if (c.launcherPct !== null && c.launcherPct !== undefined) { const fc = document.createElement('span'); fc.className = 'pairchip feechip'; fc.textContent = 'Launcher keeps ' + c.launcherPct + '%'; fc.title = c.launcherPct + '% coin launcher · ' + c.ownerPct + '% pad owner · ' + c.platformPct + '% ' + window.PAD.platform + ' (of creator fees, set on-chain at launch)'; nm.appendChild(fc); }
     a.appendChild(logo); a.appendChild(nm);
     const nums = document.createElement('span'); nums.className = 'bnums';
     const pct = Math.max(0, Math.min(100, Math.round((c.progress || 0) * 100)));

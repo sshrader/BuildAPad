@@ -517,7 +517,7 @@ function createApp(opts) {
         const usd = {};
         await Promise.all(Array.from(mints).map(async m => { usd[m] = await unitUsd(m); }));
         const dollars = (amount, mint) => (Number.isFinite(usd[mint]) && Number.isFinite(amount) ? Math.round(amount * usd[mint] * 100) / 100 : null);
-        const rows = b.rows.map(r => { const p = padStore ? padStore.get(r.slug) : null; const pm = padPairMint(r.slug); return p ? Object.assign({ name: p.name, accent: p.accent, logoUrl: p.logoUrl, tagline: p.tagline, pairSymbol: (padStore.settings(r.slug).pair || {}).symbol || '', raisedUsd: dollars(r.raisedSol, pm) }, r) : null; }).filter(Boolean);
+        const rows = b.rows.map(r => { const p = padStore ? padStore.get(r.slug) : null; const pm = padPairMint(r.slug); return p ? Object.assign({ name: p.name, accent: p.accent, logoUrl: p.logoUrl, tagline: p.tagline, pairSymbol: (padStore.settings(r.slug).pair || {}).symbol || '', ownerPct: p.ownerPct || 0, launcherPct: 100 - padStore.platformPct - (p.ownerPct || 0), platformPct: padStore.platformPct, raisedUsd: dollars(r.raisedSol, pm) }, r) : null; }).filter(Boolean);
         // Pads rank by coins launched, then graduated coins, then dollars raised (a pad with no known price ranks last on that step).
         rows.sort((x, y) => (y.coins - x.coins) || (y.graduated - x.graduated) || ((y.raisedUsd || 0) - (x.raisedUsd || 0)));
         const pairedRaised = rows.filter(r => r.pairSymbol).reduce((n, r) => n + (r.raisedSol || 0), 0);
@@ -527,7 +527,7 @@ function createApp(opts) {
         const coins = coinsAll.filter(c => !old.has(c.pool)).map(c => Object.assign({}, c, { raisedUsd: dollars(c.raisedSol, padPairMint(c.pad)) }))
           .sort((x, y) => (Number(y.migrated) - Number(x.migrated)) || ((y.progress || 0) - (x.progress || 0)) || ((y.raisedUsd !== null ? y.raisedUsd : (y.raisedSol || 0)) - (x.raisedUsd !== null ? x.raisedUsd : (x.raisedSol || 0)))).slice(0, 20).map(c => {
           const p = c.pad && padStore ? padStore.get(c.pad) : null;
-          return Object.assign({}, c, { padName: p ? p.name : '', padAccent: p ? p.accent : '', pairSymbol: p ? ((padStore.settings(c.pad) || {}).pair || {}).symbol || '' : '' });
+          return Object.assign({}, c, { ownerPct: p ? (p.ownerPct || 0) : 0, launcherPct: p ? 100 - padStore.platformPct - (p.ownerPct || 0) : null, platformPct: padStore.platformPct, padName: p ? p.name : '', padAccent: p ? p.accent : '', pairSymbol: p ? ((padStore.settings(c.pad) || {}).pair || {}).symbol || '' : '' });
         });
         return JSON.stringify({ pads: rows, coins: coins, stats: { pads: padStore ? padStore.size() : 0, coins: b.totalCoins, raisedSol: Math.max(0, b.totalRaisedSol - pairedRaised) } });
       };

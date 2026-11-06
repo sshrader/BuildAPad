@@ -604,7 +604,7 @@ function createApp(opts) {
         // Whether the coin's pad has the mascot chat on, and the mascot's name, so the page can show the right thing.
         if (r.status === 200 && padStore && r.body.pad) {
           const set = padStore.settings(r.body.pad);
-          if (set) { r.body.chat = set.ai.chat; r.body.mascotName = set.ai.mascotName; }
+          if (set) { r.body.chat = set.ai.chat; r.body.mascotName = set.ai.mascotName; if (set.pair && set.pair.symbol) r.body.pairSymbol = set.pair.symbol; }
         }
         if (r.status === 200 && r.body.links && r.body.links.website && !r.body.siteVerified && verifier.places(r.body.links.website).length) {
           r.body.verifyCode = verifier.code(r.body.pool, r.body.creator);

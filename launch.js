@@ -351,18 +351,24 @@ function createLauncher(opts) {
       const curve = await readCurve(c, mint);
       if (!curve) return { status: 404, body: { error: 'pool_not_found' } };
       const glob = await readGlobal(c);
-      const need = Number(pump.solToFill(glob)) / 1e9;
+      // A coin paired with another token counts in that token's own units, and starts from its own virtual reserves.
+      const quote = await quoteOfCurve(c, curve);
+      const unitDiv = quote ? Math.pow(10, quote.decimals) : 1e9;
+      const need = quote
+        ? Number(pump.solToFill({ initial_virtual_token_reserves: glob.initial_virtual_token_reserves, initial_virtual_sol_reserves: curve.initial_virtual_quote_reserves, initial_real_token_reserves: glob.initial_real_token_reserves })) / unitDiv
+        : Number(pump.solToFill(glob)) / 1e9;
       const startReal = Number(glob.initial_real_token_reserves) || 1;
       const left = Number(curve.real_token_reserves);
       const progress = Math.max(0, Math.min(1, 1 - left / startReal));
       const vt = Number(curve.virtual_token_reserves) || 1;
-      const marketCapSol = (Number(curve.virtual_quote_reserves) / vt) * Number(curve.token_total_supply) / 1e9;
+      const marketCapSol = (Number(curve.virtual_quote_reserves) / vt) * Number(curve.token_total_supply) / unitDiv;
       const complete = Boolean(curve.complete);
       return {
         status: 200,
         body: {
           address: mint, curve: c.B.bondingCurveOf(mint).toBase58(), mint,
-          raisedSol: complete ? need : Number(curve.real_quote_reserves) / 1e9, thresholdSol: need,
+          raisedSol: complete ? need : Number(curve.real_quote_reserves) / unitDiv, thresholdSol: need,
+          paired: Boolean(quote), pairMint: quote ? quote.mint.toBase58() : '',
           progress: complete ? 1 : progress, marketCapSol,
           migrated: complete, curveFull: complete,
           splitOk: curve.creator === c.B.sharingConfigOf(mint).toBase58(), cluster
@@ -396,6 +402,8 @@ function createLauncher(opts) {
       const curve = await readCurve(c, b.pool);
       if (!curve) return { status: 404, body: { error: 'pool_not_found' } };
       if (curve.complete) return { status: 409, body: { error: 'migrated' } };
+      // Buying with a pair token is not switched on until it has been proven; a SOL buy would only fail.
+      if (await quoteOfCurve(c, curve)) return { status: 409, body: { error: 'pair_trade_not_ready' } };
       const buyerPk = new c.web3.PublicKey(b.buyer);
       const transaction = await buildBuy(c, buyerPk, b.pool, curve, sol, 500);
       return { status: 200, body: { transaction, partialFill: false, cluster } };
@@ -407,6 +415,16 @@ function createLauncher(opts) {
 
   // Creator fees waiting for a coin: the part still on the curve plus what has been swept into the fee vault.
   async function pending(c, mint, curve) {
+    const quote = await quoteOfCurve(c, curve);
+    if (quote) {
+      // Paired coins keep their waiting fees as the pair token, in a token account owned by the fee vault.
+      let amount = Number(curve.creator_fee || 0n);
+      try {
+        const bal = await c.connection.getTokenAccountBalance(c.B.ata(c.B.creatorVaultOf(curve.creator), quote.mint, quote.program));
+        amount += Number(bal && bal.value ? bal.value.amount : 0);
+      } catch (e) { /* no token account yet */ }
+      return amount / Math.pow(10, quote.decimals);
+    }
     let waiting = Number(curve.creator_fee || 0n);
     try {
       const vault = c.B.creatorVaultOf(curve.creator);
@@ -439,7 +457,7 @@ function createLauncher(opts) {
       }
       const platformHeld = holders.find(h => h.address === platformWallet);
       const pp = platformHeld ? platformHeld.pct : platformPct;
-      return { status: 200, body: { mint, pendingSol: await pending(c, mint, curve), splitOk, creatorPct: 100 - pp, platformPct: pp, shares: holders, platformWallet, cluster } };
+      return { status: 200, body: { mint, paired: Boolean(await quoteOfCurve(c, curve)), pendingSol: await pending(c, mint, curve), splitOk, creatorPct: 100 - pp, platformPct: pp, shares: holders, platformWallet, cluster } };
     } catch (err) {
       logger.error('Launch fees read failed: ' + (err && err.stack ? err.stack : 'unknown error'));
       return { status: 502, body: { error: 'fees_read_failed' } };

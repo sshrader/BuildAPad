@@ -32,6 +32,7 @@
     bad_amount: 'Enter an amount between 0.01 and 5 SOL.',
     curve_full: 'The curve is full and moving to its DEX pool, so there is nothing left to buy here.',
     migrated: 'This token has moved to its DEX pool and cannot be bought here any more.',
+    pair_trade_not_ready: 'Buying coins paired with another token is not switched on yet.',
     not_creator: 'Only the wallet that launched this token can claim its creator fees. Switch Phantom to that wallet.',
     nothing_to_claim: 'There are no creator fees to claim yet.',
     launch_unavailable: 'Trading is not switched on for this site.'
@@ -74,7 +75,7 @@
   function renderFees() {
     $('t-fees').hidden = !feeInfo;
     if (!feeInfo) return;
-    $('t-fee-text').textContent = 'Creator fees waiting: ' + feeInfo.pendingSol.toFixed(6) + ' SOL' +
+    $('t-fee-text').textContent = 'Creator fees waiting: ' + feeInfo.pendingSol.toFixed(6) + (feeInfo.paired ? ' (pair token)' : ' SOL') +
       (feeInfo.splitOk ? ' · split ' + window.feeLine(feeInfo) : ' · fee split not set yet');
     $('t-claim').disabled = busy || !feeInfo.splitOk || !(feeInfo.pendingSol > 0.00001);
   }

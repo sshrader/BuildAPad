@@ -74,7 +74,7 @@
     add(bar, 'i').style.width = pct + '%';
     add(body, 'p', c.migrated ? 'This coin has moved to its regular trading pool.'
       : c.curveFull ? 'The curve is full. It is ready to move to a trading pool.'
-      : pct + '% full · ' + Number(c.raisedSol).toFixed(3) + ' of ' + Number(c.thresholdSol).toFixed(3) + ' SOL raised', 'hint');
+      : pct + '% full · ' + Number(c.raisedSol).toFixed(3) + ' of ' + Number(c.thresholdSol).toFixed(3) + ' ' + (c.pairSymbol || 'SOL') + ' raised', 'hint');
 
     const links = c.links || {};
     const out = [['website', 'Website'], ['twitter', 'X'], ['telegram', 'Telegram']]
@@ -108,6 +108,7 @@
     if (B58.test(c.mint || '')) copyButton('Copy CA', c.mint);
     copyButton('Copy buy link', blink);
     startFees(body, c);
+    if (c.pairSymbol) add(body, 'p', 'This coin is paired with ' + c.pairSymbol + '. Buying it here is not switched on yet.', 'hint');
     { const tip = add(body, 'p', 'Like a trading terminal? ', 'hint'); const a = add(tip, 'a', 'Try Lute'); a.href = '/go/lute'; a.target = '_blank'; a.rel = 'sponsored noopener'; tip.appendChild(document.createTextNode(' (referral link).')); }
 
     const f = add(body, 'dl', undefined, 'facts');
@@ -142,11 +143,12 @@
       nothing_to_claim: 'There are no creator fees to send out yet.',
       split_not_set: 'This coin\'s fee split has not been set yet.',
       migrated: 'This coin has moved to its trading pool; its fees are paid out on pump.fun.',
+      pair_trade_not_ready: 'Trading this pair is not switched on yet.',
       rate_limited: 'Too many requests. Wait a minute.'
     };
     function draw() {
       if (!info) return;
-      text.textContent = 'Creator fees waiting: ' + info.pendingSol.toFixed(6) + ' SOL' +
+      text.textContent = 'Creator fees waiting: ' + info.pendingSol.toFixed(6) + ' ' + (c.pairSymbol || (info.paired ? 'pair token' : 'SOL')) +
         (info.splitOk ? ' · split ' + window.feeLine(info) : ' · fee split not set yet');
       btn.hidden = false;
       btn.disabled = busy || !info.splitOk || !(info.pendingSol > 0.00001);

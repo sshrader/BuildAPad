@@ -124,6 +124,18 @@
         <p class="hint">AI pictures and chat cost the site money, so each pad has a daily limit. The mascot never gives financial advice.</p>
       </section>
 
+      <section class="group" id="g-pair-box" aria-labelledby="g-pair" hidden>
+        <h3 id="g-pair">Pool pair</h3>
+        <p class="hint">What every coin on your pad trades against. SOL is the default. Pick a stock, crypto or other pair from pump.fun's list to build a themed pad.</p>
+        <label class="field">Pair
+          <select id="f-pair"><option value="">SOL (default)</option></select>
+        </label>
+        <label class="field sub" id="f-pair-q-wrap">Search the list
+          <input type="text" id="f-pair-q" placeholder="Tesla, BTC, NVDA…" autocomplete="off" spellcheck="false">
+        </label>
+        <p class="hint" id="f-pair-note" hidden>Preview: coins on a paired pad cannot be launched yet. Launching with a pair is still being built and tested, so keep SOL for a live pad.</p>
+      </section>
+
       <section class="group" aria-labelledby="g-rules">
         <h3 id="g-rules">Launch rules</h3>
         <label class="check"><input type="checkbox" id="f-rule-buy"> Launchers must buy their own coin at launch</label>

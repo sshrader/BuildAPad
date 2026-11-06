@@ -123,6 +123,18 @@ function createApp(opts) {
     return prices;
   }
 
+  // A pad's chosen pool pair must be one pump.fun allows. The name and symbol are filled in from the real list, never trusted from the page.
+  async function checkPair(body) {
+    const st = body && body.settings && typeof body.settings === 'object' ? body.settings : null;
+    const pr = st && st.pair && typeof st.pair === 'object' ? st.pair : null;
+    if (!pr || !pr.mint) { if (st) delete st.pair; return null; }
+    const r = launcher && launcher.pairs ? await launcher.pairs() : null;
+    const hit = r && r.status === 200 ? r.body.pairs.find(x => x.mint === pr.mint) : null;
+    if (!hit) return 'bad_pair';
+    st.pair = { mint: hit.mint, symbol: hit.symbol, name: hit.name };
+    return null;
+  }
+
   const reportCache = new Map();
   async function founderLaunched() {
     if (!founder || !launches) return null;
@@ -214,8 +226,11 @@ function createApp(opts) {
       if (!padStore) return send(res, 404, JSON.stringify({ error: 'not_found' }), noStore);
       readJson(req, 1500000).then(body => {
         if (!body) return send(res, 400, JSON.stringify({ error: 'bad_request' }), noStore);
-        const r = padStore.create(body, { ip: clientIp(req) });
-        send(res, r.status, JSON.stringify(r.body), noStore);
+        return checkPair(body).then(bad => {
+          if (bad) return send(res, 400, JSON.stringify({ error: bad }), noStore);
+          const r = padStore.create(body, { ip: clientIp(req) });
+          send(res, r.status, JSON.stringify(r.body), noStore);
+        });
       }).catch(() => send(res, 500, JSON.stringify({ error: 'server_error' }), noStore));
       return;
     }
@@ -227,8 +242,11 @@ function createApp(opts) {
       if (!padStore) return send(res, 404, JSON.stringify({ error: 'not_found' }), noStore);
       readJson(req, 1500000).then(body => {
         if (!body) return send(res, 400, JSON.stringify({ error: 'bad_request' }), noStore);
-        const r = padStore.update(Object.assign({}, body, { slug: upm[1] }), { ip: clientIp(req) });
-        send(res, r.status, JSON.stringify(r.body), noStore);
+        return checkPair(body).then(bad => {
+          if (bad) return send(res, 400, JSON.stringify({ error: bad }), noStore);
+          const r = padStore.update(Object.assign({}, body, { slug: upm[1] }), { ip: clientIp(req) });
+          send(res, r.status, JSON.stringify(r.body), noStore);
+        });
       }).catch(() => send(res, 500, JSON.stringify({ error: 'server_error' }), noStore));
       return;
     }
@@ -435,6 +453,8 @@ function createApp(opts) {
             // The pad's rules, checked here from the server's own records.
             const why = typeof body.creator === 'string' ? padStore.accessFor(padSlug, body.creator) : '';
             if (why) return send(res, 403, JSON.stringify({ error: 'not_allowed', reason: why }), noStore);
+            // Launching with a pool pair other than SOL is not switched on yet: the launch steps still assume SOL.
+            if (rec.settings.pair && rec.settings.pair.mint) return send(res, 409, JSON.stringify({ error: 'pair_not_ready', pair: rec.settings.pair.symbol }), noStore);
             const rules = rec.settings.rules;
             if (rules.requireFirstBuy && !(Number(body.firstBuySol) >= rules.minFirstBuySol)) return send(res, 400, JSON.stringify({ error: 'first_buy_required', min: rules.minFirstBuySol }), noStore);
           }
@@ -639,6 +659,15 @@ function createApp(opts) {
       return send(res, 200, req.method === 'HEAD' ? '' : JSON.stringify(meta), Object.assign({}, JSON_TYPE, { 'Cache-Control': 'public, max-age=3600' }));
     }
 
+    // The pairing tokens a pad can choose as its pool pair, straight from pump.fun's on-chain list.
+    if (pathname === '/api/pairs') {
+      const noStore = Object.assign({}, JSON_TYPE, { 'Cache-Control': 'public, max-age=300' });
+      if (!launcher || !launcher.pairs) return send(res, 200, JSON.stringify({ pairs: [], launchReady: false }), noStore);
+      launcher.pairs().then(r => send(res, r.status === 200 ? 200 : 200, req.method === 'HEAD' ? '' : JSON.stringify(r.status === 200 ? r.body : { pairs: [], launchReady: false }), noStore))
+        .catch(() => send(res, 200, JSON.stringify({ pairs: [], launchReady: false }), noStore));
+      return;
+    }
+
     // The SOL and BTC prices for the header ticker. One lookup a minute is shared by every visitor, so the page never talks to the price site.
     if (pathname === '/api/price') {
       const noStore = Object.assign({}, JSON_TYPE, { 'Cache-Control': 'public, max-age=30' });
@@ -713,7 +742,8 @@ if (require.main === module) {
     platformSharePct: env('PLATFORM_SHARE_PCT') || pad.fees.platformSharePct || undefined,
     lookupTable: env('LAUNCH_LOOKUP_TABLE') || undefined,
     priorityMicroLamports: env('PRIORITY_FEE_MICROLAMPORTS') === '' ? undefined : Number(env('PRIORITY_FEE_MICROLAMPORTS')),
-    rpcUrl: process.env.LAUNCH_RPC_URL || undefined
+    rpcUrl: process.env.LAUNCH_RPC_URL || undefined,
+    pairsRpcUrl: process.env.PAIRS_RPC_URL || undefined
   });
   const launchesFile = env('LAUNCHES_FILE') || (dataDir ? path.join(dataDir, cluster === 'devnet' ? 'launches.json' : 'launches.' + cluster + '.json') : '');
   const padStore = createPadStore({

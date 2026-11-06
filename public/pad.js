@@ -20,6 +20,7 @@
     if (ex.about) { const a = $('padabout'); a.textContent = ex.about; a.hidden = false; }
   }
   if (ex.private) $('b-private').hidden = false;
+  if (ex.pairMint) { $('b-pair').textContent = 'Pool pair: ' + (ex.pairSymbol || 'custom'); $('b-pair').title = ex.pairName || ''; $('b-pair').hidden = false; }
   if (ex.requireFirstBuy) {
     $('b-buy').textContent = 'First buy of ' + ex.minFirstBuySol + ' SOL or more required'; $('b-buy').hidden = false;
     const buy = $('l-buy'); if (buy) { buy.min = String(ex.minFirstBuySol); buy.placeholder = String(ex.minFirstBuySol); }

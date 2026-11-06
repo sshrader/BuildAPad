@@ -497,3 +497,25 @@ test('buying through the site is refused for a wallet the pad has denied', async
   assert.equal(r.status, 403);
   assert.equal(r.body.error, 'denied');
 });
+
+test('pairs reads the quote-control list and names it through the RPC asset lookup', async () => {
+  const web3 = require('./fakeweb3.js');
+  const M1 = key(), M2 = key();
+  const data = Buffer.alloc(8 + 96 + 4 + 80);
+  data.writeUInt32LE(2, 8 + 96);
+  new web3.PublicKey(M1).toBuffer().copy(data, 8 + 96 + 4);
+  new web3.PublicKey(M2).toBuffer().copy(data, 8 + 96 + 4 + 40);
+  const st = {};
+  const { launcher } = make({
+    pairsRpcUrl: 'https://mainnet.example/rpc',
+    fetch: async () => ({ json: async () => ({ result: [
+      { id: M1, content: { metadata: { symbol: 'TSLAx', name: 'Tesla xStock' } } },
+      { id: M2, content: { metadata: { symbol: 'WBTC', name: 'Wrapped BTC' } } }
+    ] }) })
+  }, st);
+  const [qc] = web3.PublicKey.findProgramAddressSync([Buffer.from('quote-control')], new web3.PublicKey(require('../pump.js').PUMP));
+  st.accounts.set(qc.toBase58(), { data });
+  const r = await launcher.pairs();
+  assert.equal(r.status, 200);
+  assert.deepEqual(r.body.pairs.map(p => p.symbol + ':' + p.kind), ['TSLAx:stock', 'WBTC:other']);
+});

@@ -456,6 +456,53 @@ function createLauncher(opts) {
   }
 
 
+  // The pairing tokens pump.fun allows for new coins (its "custom pair" list), read from its quote-control account.
+  // PAIRS_RPC_URL can point at mainnet so the list can be previewed while launching runs on devnet. Cached for an hour.
+  const pairsRpc = o.pairsRpcUrl || rpcUrl;
+  let pairsCache = null;
+  async function pairs() {
+    const nowMs = (o.now || Date.now)();
+    if (pairsCache && nowMs - pairsCache.at < 3600000) return { status: 200, body: pairsCache.value };
+    if (!pairsRpc) return { status: 503, body: { error: 'pairs_unavailable' } };
+    try {
+      const { web3 } = await load();
+      const connection = new web3.Connection(pairsRpc, 'confirmed');
+      const [qc] = web3.PublicKey.findProgramAddressSync([Buffer.from('quote-control')], new web3.PublicKey(pump.PUMP));
+      const acc = await connection.getAccountInfo(qc);
+      const list = [];
+      if (acc) {
+        const d = Buffer.from(acc.data);
+        const start = 8 + 32 + 32 + 32 + 4;
+        const count = d.length >= start ? d.readUInt32LE(start - 4) : 0;
+        for (let i = 0; i < count && start + (i + 1) * 40 <= d.length; i++) {
+          list.push({ mint: new web3.PublicKey(d.subarray(start + i * 40, start + i * 40 + 32)).toBase58() });
+        }
+      }
+      // Names and symbols, through the RPC's asset lookup (Helius has it). Without it a pair shows as its address.
+      const meta = {};
+      const doFetch = o.fetch || (typeof fetch === 'function' ? fetch : null);
+      if (list.length && doFetch) {
+        try {
+          const res = await doFetch(pairsRpc, { method: 'POST', headers: { 'Content-Type': 'application/json' }, body: JSON.stringify({ jsonrpc: '2.0', id: 1, method: 'getAssetBatch', params: { ids: list.map(x => x.mint) } }), signal: AbortSignal.timeout(15000) });
+          const j = await res.json();
+          (j.result || []).forEach(a => { if (a && a.id && a.content && a.content.metadata) meta[a.id] = { symbol: String(a.content.metadata.symbol || ''), name: String(a.content.metadata.name || '') }; });
+        } catch (e) { logger.error('Pair names lookup failed: ' + (e && e.message)); }
+      }
+      const out = list.map(x => {
+        const m = meta[x.mint] || { symbol: '', name: '' };
+        const symbol = m.symbol.replace(/[^\w.\-$]/g, '').slice(0, 12) || x.mint.slice(0, 4) + '…';
+        const name = m.name.replace(/[\u0000-\u001f<>]/g, '').slice(0, 60) || symbol;
+        return { mint: x.mint, symbol, name, kind: /xstock|securities|etf/i.test(m.name) ? 'stock' : 'other' };
+      }).sort((a, b) => (a.kind === b.kind ? a.symbol.localeCompare(b.symbol) : a.kind === 'stock' ? -1 : 1));
+      const value = { pairs: out, cluster: pairsRpc === rpcUrl ? cluster : 'mainnet-beta', launchReady: false };
+      pairsCache = { at: nowMs, value };
+      return { status: 200, body: value };
+    } catch (err) {
+      logger.error('Pair list read failed: ' + (err && err.message ? err.message : 'unknown error'));
+      return { status: 502, body: { error: 'pairs_failed' } };
+    }
+  }
+
   // What the chain shows about a coin's holders and recent trading, for the mascot's report. Cached for a minute.
   const activityCache = new Map();
   async function activity(mint, ctx) {
@@ -528,7 +575,7 @@ function createLauncher(opts) {
     }
   }
 
-  return { info, lookupAddresses, prepare, step, status, pool, inspect, buy, fees, distribute, partnerFees, activity };
+  return { info, lookupAddresses, prepare, step, status, pool, inspect, buy, fees, distribute, partnerFees, activity, pairs };
 }
 
 // Metadata for the token, read by wallets and explorers. Built from the link and the stored animal, so the

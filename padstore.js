@@ -59,8 +59,14 @@ function normalizeSettings(raw) {
     ai: { coinMaker: ai.coinMaker === true, style: clean(ai.style, 80), chat: ai.chat !== false, mascotName: clean(ai.mascotName, 24), mascotPersona: clean(ai.mascotPersona, 120) },
     rules: { requireFirstBuy: rules.requireFirstBuy === true, minFirstBuySol: 0 },
     access: { allow, deny },
-    page: { about: clean(page.about, 500) }
+    page: { about: clean(page.about, 500) },
+    pair: { mint: '', symbol: '', name: '' }
   };
+  const pr = r.pair && typeof r.pair === 'object' ? r.pair : {};
+  if (pr.mint) {
+    if (typeof pr.mint !== 'string' || !B58.test(pr.mint.trim())) return { error: 'bad_pair' };
+    settings.pair = { mint: pr.mint.trim(), symbol: clean(pr.symbol, 12), name: clean(pr.name, 60) };
+  }
   if (settings.rules.requireFirstBuy) {
     const m = rules.minFirstBuySol === undefined ? 0.05 : Number(rules.minFirstBuySol);
     if (!Number.isFinite(m) || m < MIN_BUY || m > MAX_BUY) return { error: 'bad_min_buy' };
@@ -283,7 +289,8 @@ function createPadStore(opts) {
     pad.extra = {
       slug: e.slug, ownerWallet: e.ownerWallet, payoutWallet: e.payoutWallet || e.ownerWallet, ownerPct: e.ownerPct, logoUrl: '/pad-logo/' + e.slug + '.' + e.logoExt, links: e.links || {},
       about: s.page.about, bannerUrl: bannerUrl(e), aiCoinMaker: s.ai.coinMaker, mascotChat: s.ai.chat, mascotName: s.ai.mascotName,
-      requireFirstBuy: s.rules.requireFirstBuy, minFirstBuySol: s.rules.minFirstBuySol, private: s.access.allow.length > 0
+      requireFirstBuy: s.rules.requireFirstBuy, minFirstBuySol: s.rules.minFirstBuySol, private: s.access.allow.length > 0,
+      pairMint: s.pair.mint, pairSymbol: s.pair.symbol, pairName: s.pair.name
     };
     return pad;
   }

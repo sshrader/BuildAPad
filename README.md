@@ -100,3 +100,7 @@ Real money. Get a legal and security review first.
 3. Make the lookup table once with `12-make-lookup-table.mjs <platform fee wallet>` and use its address as `LAUNCH_LOOKUP_TABLE`.
 4. On Railway set `LAUNCH_CLUSTER=mainnet-beta`, `MAINNET_ENABLED=yes`, `LAUNCH_RPC_URL`, `PLATFORM_FEE_WALLET`, `PLATFORM_SHARE_PCT`, `LAUNCH_LOOKUP_TABLE`, and keep the volume mounted.
 5. Build one pad and launch one small coin first, then check `/admin`.
+
+### Pool pair (preview)
+
+A pad can pick a pool pair from pump.fun's on-chain custom pair list (stocks, crypto, others). The list is read from pump.fun's quote-control account. On a devnet server, set `PAIRS_RPC_URL` to a mainnet RPC address (read-only) to preview the picker; without it the picker stays hidden. Launching coins on a paired pad is not switched on yet: the server answers `pair_not_ready`.

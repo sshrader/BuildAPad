@@ -266,3 +266,12 @@ test('server: text an owner writes (about, mascot) cannot break out of the pad p
     assert.ok(!html.includes('<b>hi</b>'));
   } finally { await new Promise(r => srv.close(r)); }
 });
+
+test('a pad can carry a pool pair, and a bad pair address is refused', () => {
+  const { normalizeSettings } = require('../padstore.js');
+  const mint = 'XsDoVfqeBukxuZHWhdvWHBhgEHjGNst4MLodqsJHzoB';
+  const ok = normalizeSettings({ pair: { mint, symbol: 'TSLAx', name: 'Tesla xStock' } });
+  assert.equal(ok.settings.pair.mint, mint);
+  assert.equal(normalizeSettings({}).settings.pair.mint, '');
+  assert.equal(normalizeSettings({ pair: { mint: 'not a key!' } }).error, 'bad_pair');
+});

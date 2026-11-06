@@ -90,7 +90,7 @@
 
     const acts = add(body, 'div', undefined, 'cp-actions');
     const t = add(acts, 'a', 'Trade this coin', 'btn go');
-    t.href = '/?pool=' + encodeURIComponent(c.pool) + '#trade';
+    t.href = (/^[a-z0-9-]{2,30}$/.test(c.pad || '') ? '/p/' + c.pad : '/') + '?pool=' + encodeURIComponent(c.pool) + '#trade';
     const tw = add(acts, 'a', 'Share on X', 'btn');
     tw.href = 'https://twitter.com/intent/tweet?text=' + encodeURIComponent(c.name + ' ($' + c.symbol + ') on ' + window.PAD.platform + '' + (AnimalNet.main ? '' : ', a devnet test coin')) + '&url=' + encodeURIComponent(location.origin + '/coin/' + c.pool);
     tw.target = '_blank'; tw.rel = 'noopener noreferrer';

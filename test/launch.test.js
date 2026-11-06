@@ -519,3 +519,22 @@ test('pairs reads the quote-control list and names it through the RPC asset look
   assert.equal(r.status, 200);
   assert.deepEqual(r.body.pairs.map(p => p.symbol + ':' + p.kind), ['TSLAx:stock', 'WBTC:other']);
 });
+
+test('a pad with a pool pair creates its coin against that token, and a first buy is refused for now', async () => {
+  const web3 = require('./fakeweb3.js');
+  const PAIR = key();
+  const st = {};
+  const { launcher } = make({}, st);
+  const mintData = Buffer.alloc(82); mintData[44] = 8;
+  st.accounts.set(PAIR, { data: mintData, owner: 'TokenzQdBNbLqP5VEhdkAS6EPFLC1PHnBqCXEpPxuEb' });
+  const plain = await launcher.prepare(good, ctx);
+  const paired = await launcher.prepare(good, Object.assign({}, ctx, { pad: { pair: PAIR } }));
+  assert.equal(paired.status, 200);
+  assert.equal(paired.body.pair, PAIR);
+  const keys = r => tx(r.body.transaction).instructions[tx(r.body.transaction).instructions.length - 1].keys;
+  assert.equal(keys(paired), keys(plain) + 4);
+  const withBuy = await launcher.prepare(Object.assign({}, good, { firstBuySol: 0.1 }), Object.assign({}, ctx, { pad: { pair: PAIR } }));
+  assert.equal(withBuy.body.error, 'pair_buy_not_ready');
+  const missing = await launcher.prepare(good, Object.assign({}, ctx, { pad: { pair: key() } }));
+  assert.equal(missing.body.error, 'pair_not_found');
+});

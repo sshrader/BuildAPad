@@ -448,13 +448,13 @@ function createApp(opts) {
           padSlug = action === 'prepare' ? String(body.pad || '') : (launches ? launches.padOf(String(body.mint || '')) : '');
           const rec = padSlug ? padStore.get(padSlug) : null;
           if (action === 'prepare' && padSlug && !rec) return send(res, 400, JSON.stringify({ error: 'bad_pad' }), noStore);
-          if (rec) padCtx = { owner: rec.payoutWallet || rec.ownerWallet, ownerPct: rec.ownerPct };
+          if (rec) padCtx = { owner: rec.payoutWallet || rec.ownerWallet, ownerPct: rec.ownerPct, pair: process.env.PAIRS_LAUNCH === 'yes' && rec.settings.pair ? rec.settings.pair.mint : '' };
           if (rec && action === 'prepare') {
             // The pad's rules, checked here from the server's own records.
             const why = typeof body.creator === 'string' ? padStore.accessFor(padSlug, body.creator) : '';
             if (why) return send(res, 403, JSON.stringify({ error: 'not_allowed', reason: why }), noStore);
             // Launching with a pool pair other than SOL is not switched on yet: the launch steps still assume SOL.
-            if (rec.settings.pair && rec.settings.pair.mint) return send(res, 409, JSON.stringify({ error: 'pair_not_ready', pair: rec.settings.pair.symbol }), noStore);
+            if (rec.settings.pair && rec.settings.pair.mint && process.env.PAIRS_LAUNCH !== 'yes') return send(res, 409, JSON.stringify({ error: 'pair_not_ready', pair: rec.settings.pair.symbol }), noStore);
             const rules = rec.settings.rules;
             if (rules.requireFirstBuy && !(Number(body.firstBuySol) >= rules.minFirstBuySol)) return send(res, 400, JSON.stringify({ error: 'first_buy_required', min: rules.minFirstBuySol }), noStore);
           }

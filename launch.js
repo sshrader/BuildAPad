@@ -99,6 +99,19 @@ function createLauncher(opts) {
     return pump.decodeAccount(pump.IDLS.pump, 'BondingCurve', acc.data, c.web3);
   }
 
+  // The token a coin is paired with, when it is not SOL: its mint, which token program owns it, and its decimals.
+  async function quoteFromMint(c, mintStr) {
+    const pk = new c.web3.PublicKey(mintStr);
+    const info = await c.connection.getAccountInfo(pk);
+    if (!info || !info.data || info.data.length < 45) return null;
+    return { mint: pk, program: info.owner, decimals: info.data[44] };
+  }
+  async function quoteOfCurve(c, curve) {
+    const q = curve && curve.quote_mint ? (curve.quote_mint.toBase58 ? curve.quote_mint.toBase58() : String(curve.quote_mint)) : '';
+    if (!q || q === '11111111111111111111111111111111' || q === pump.WSOL) return null;
+    return quoteFromMint(c, q);
+  }
+
   function budget(c, units) {
     const cb = c.web3.ComputeBudgetProgram;
     if (!cb) return [];
@@ -196,7 +209,14 @@ function createLauncher(opts) {
       const c = await chain();
       const creatorPk = new c.web3.PublicKey(b.creator);
       const mintKp = c.web3.Keypair.generate();
-      const ix = c.B.createCoin({ mint: mintKp.publicKey, user: creatorPk, name, symbol, uri });
+      // A pad with a pool pair other than SOL creates its coins against that token. The first buy for those is not built yet.
+      let quote = null;
+      if (ctx && ctx.pad && ctx.pad.pair) {
+        if (firstBuySol > 0) return { status: 400, body: { error: 'pair_buy_not_ready' } };
+        quote = await quoteFromMint(c, ctx.pad.pair);
+        if (!quote) return { status: 409, body: { error: 'pair_not_found' } };
+      }
+      const ix = c.B.createCoin({ mint: mintKp.publicKey, user: creatorPk, name, symbol, uri, quote });
       const mint = mintKp.publicKey.toBase58();
       const table = await getTable(c);
       const atomic = Boolean(table);
@@ -211,7 +231,7 @@ function createLauncher(opts) {
         ixs = budget(c, CU.create + CU.buy).concat([ix], buyInstructions(c, creatorPk, mint, fresh, firstBuySol, 1000, glob));
       }
       const transaction = await toTx(c, ixs, creatorPk, [mintKp], table);
-      return { status: 200, body: { transaction, mint, pool: mint, curve: c.B.bondingCurveOf(mintKp.publicKey).toBase58(), firstBuySol, atomic, split: splitFor(ctx && ctx.pad), cluster } };
+      return { status: 200, body: { transaction, mint, pool: mint, curve: c.B.bondingCurveOf(mintKp.publicKey).toBase58(), firstBuySol, atomic, pair: quote ? quote.mint.toBase58() : '', split: splitFor(ctx && ctx.pad), cluster } };
     } catch (err) {
       logger.error('Launch prepare failed: ' + (err && err.stack ? err.stack : 'unknown error'));
       return { status: 502, body: { error: 'prepare_failed' } };
@@ -235,16 +255,17 @@ function createLauncher(opts) {
       const creatorPk = new c.web3.PublicKey(b.creator);
       const sharing = c.B.sharingConfigOf(b.mint).toBase58();
       const table = await getTable(c);
+      const quote = await quoteOfCurve(c, curve);
       if (curve.creator === b.creator) {
         // Fees that have built up on the curve must be swept before the creator is swapped for the split.
         const ixs = [];
-        if (Number(curve.creator_fee || 0n) > 0) ixs.push(c.B.sweepCreatorFee({ payer: creatorPk, mint: b.mint, creator: creatorPk }));
-        ixs.push(c.B.createSharingConfig({ mint: b.mint, payer: creatorPk }), c.B.setShares({ mint: b.mint, authority: creatorPk, shareholders: shares(b.creator, ctx && ctx.pad), currentShareholders: [creatorPk] }));
+        if (Number(curve.creator_fee || 0n) > 0) ixs.push(c.B.sweepCreatorFee({ payer: creatorPk, mint: b.mint, creator: creatorPk, quote }));
+        ixs.push(c.B.createSharingConfig({ mint: b.mint, payer: creatorPk }), c.B.setShares({ mint: b.mint, authority: creatorPk, shareholders: shares(b.creator, ctx && ctx.pad), currentShareholders: [creatorPk], quote }));
         return { status: 200, body: { step: 'split', transaction: await toTx(c, budget(c, CU.split).concat(ixs), creatorPk, null, table), cluster } };
       }
       if (curve.creator !== sharing) return { status: 403, body: { error: 'not_creator' } };
       // Without a lookup table the first buy is its own, last step. With one it was part of the launch transaction.
-      if (firstBuySol > 0 && !table) {
+      if (firstBuySol > 0 && !table && !quote) {
         let held = 0n;
         try {
           const bal = await c.connection.getTokenAccountBalance(c.B.ata(creatorPk, b.mint, pump.TOKEN_2022));
@@ -446,7 +467,7 @@ function createLauncher(opts) {
       const payerPk = new c.web3.PublicKey(b.payer);
       const ixs = [
         c.B.sweepCreatorFee({ payer: payerPk, mint: b.pool, creator: curve.creator }),
-        c.B.distribute({ payer: payerPk, mint: b.pool, shareholders: holders.map(a => new c.web3.PublicKey(a)) })
+        c.B.distribute({ payer: payerPk, mint: b.pool, shareholders: holders.map(a => new c.web3.PublicKey(a)), quote: await quoteOfCurve(c, curve) })
       ];
       return { status: 200, body: { transaction: await toTx(c, budget(c, CU.distribute).concat(ixs), payerPk), waitingSol: waiting, cluster } };
     } catch (err) {

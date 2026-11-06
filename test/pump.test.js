@@ -104,3 +104,15 @@ test('a coin paired with another token passes the quote accounts, and the SOL pa
   const buySol = B.buyExactIn({ user, mint, lamports: 1000n, minTokensOut: 1n });
   assert.ok(buySol.keys.some(x => x.pubkey.toBase58() === P.WSOL));
 });
+
+test('with a token pair the fee split also passes each current shareholder\'s token account', () => {
+  const B = P.createBuilder(web3);
+  const k = () => rnd();
+  const mint = k(), user = k(), Q = k();
+  const TOKEN_2022 = 'TokenzQdBNbLqP5VEhdkAS6EPFLC1PHnBqCXEpPxuEb';
+  const shares = [{ address: user, bps: 7000 }, { address: k(), bps: 3000 }];
+  const plain = B.setShares({ mint, authority: user, shareholders: shares, currentShareholders: [user] });
+  const paired = B.setShares({ mint, authority: user, shareholders: shares, currentShareholders: [user], quote: { mint: Q, program: TOKEN_2022 } });
+  assert.equal(paired.keys.length, plain.keys.length + 1);
+  assert.equal(paired.keys[paired.keys.length - 1].pubkey.toBase58(), B.ata(user, Q, TOKEN_2022).toBase58());
+});

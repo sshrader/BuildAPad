@@ -257,7 +257,11 @@ function createBuilder(web3) {
     const total = shareholders.reduce((s, x) => s + x.bps, 0);
     if (total !== 10000) throw new Error('Shares must add up to 10000 bps');
     const sharingConfig = sharingConfigOf(mint);
-    const current = (currentShareholders && currentShareholders.length ? currentShareholders : [authority]).map(a => ({ pubkey: a, isWritable: true }));
+    const currentList = currentShareholders && currentShareholders.length ? currentShareholders : [authority];
+    let current = currentList.map(a => ({ pubkey: a, isWritable: true }));
+    // A coin paired with a token pays the waiting fees out in that token, so each current shareholder's token account
+    // follows the wallets, in the same order (missing ones are created during the payout).
+    if (quote && quote.mint) { const q = quoteOf(quote); current = current.concat(currentList.map(a => ({ pubkey: ata(a, q.mint, q.program), isWritable: true }))); }
     return instruction('fees', 'update_fee_shares_v2',
       { shareholders: shareholders.map(s => ({ address: pk(s.address), share_bps: s.bps })) },
       { authority, mint, quote_mint: quoteOf(quote).mint, token_program: quoteOf(quote).program, sharing_config: sharingConfig },
@@ -293,10 +297,13 @@ function createBuilder(web3) {
   // Pays the coin's waiting creator fees out to its shareholders, in the order stored in the sharing config.
   function distribute({ payer, mint, shareholders, quote }) {
     const sharingConfig = sharingConfigOf(mint);
-    return instruction('pump', 'distribute_creator_fees_v2', { initialize_ata: false }, {
+    const q = quote && quote.mint ? quoteOf(quote) : null;
+    // With a token pair, each shareholder's token account follows the wallets, and missing ones are created.
+    const remaining = shareholders.map(a => ({ pubkey: a, isWritable: true })).concat(q ? shareholders.map(a => ({ pubkey: ata(a, q.mint, q.program), isWritable: true })) : []);
+    return instruction('pump', 'distribute_creator_fees_v2', { initialize_ata: Boolean(q) }, {
       payer, mint, quote_mint: quoteOf(quote).mint, quote_token_program: quoteOf(quote).program,
       'bonding_curve.creator': sharingConfig
-    }, shareholders.map(a => ({ pubkey: a, isWritable: true }))).instruction;
+    }, remaining).instruction;
   }
 
   return {

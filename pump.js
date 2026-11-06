@@ -212,13 +212,28 @@ function createBuilder(web3) {
   }
 
   // ---- The instructions HatchPad uses ----
+  // `quote` is { mint, program } for a coin paired with a token other than SOL. Left out, the pair is SOL.
+  const quoteOf = q => (q && q.mint ? { mint: pk(q.mint), program: pk(q.program || TOKEN) } : { mint: new PublicKey(WSOL), program: new PublicKey(TOKEN) });
+  const QUOTE_CONTROL = () => pda([Buffer.from('quote-control')]);
 
-  function createCoin({ mint, user, name, symbol, uri }) {
+  function createCoin({ mint, user, name, symbol, uri, quote }) {
     const given = { mint, user, mayhem_token_vault: null };
     // The Mayhem token vault is the Token-2022 account of the Mayhem sol_vault for this mint.
     const first = resolveAccounts('pump', 'create_v2', { mint, user }, true);
     given.mayhem_token_vault = ata(first.have.sol_vault, mint, TOKEN_2022);
-    return instruction('pump', 'create_v2', { name, symbol, uri, creator: pk(user), is_mayhem_mode: false }, given).instruction;
+    // A coin paired with another token: the quote accounts follow the fixed ones (quote mint, the curve's account for it,
+    // that token's program, then the quote-control list the pair was admitted through).
+    let remaining;
+    if (quote && quote.mint) {
+      const q = quoteOf(quote);
+      remaining = [
+        { pubkey: q.mint, isWritable: false },
+        { pubkey: ata(bondingCurveOf(mint), q.mint, q.program), isWritable: true },
+        { pubkey: q.program, isWritable: false },
+        { pubkey: QUOTE_CONTROL(), isWritable: false }
+      ];
+    }
+    return instruction('pump', 'create_v2', { name, symbol, uri, creator: pk(user), is_mayhem_mode: false }, given, remaining).instruction;
   }
 
   function createSharingConfig({ mint, payer }) {
@@ -238,47 +253,48 @@ function createBuilder(web3) {
   // so those wallets must be passed after the fixed accounts, in the order stored on-chain. A brand new split
   // config holds just the creator (docs/instructions/CREATOR_FEE_SHARING.md), which is what Sparkpad's working
   // launch passes too (currentShareholders: [creator]).
-  function setShares({ mint, authority, shareholders, currentShareholders }) {
+  function setShares({ mint, authority, shareholders, currentShareholders, quote }) {
     const total = shareholders.reduce((s, x) => s + x.bps, 0);
     if (total !== 10000) throw new Error('Shares must add up to 10000 bps');
     const sharingConfig = sharingConfigOf(mint);
     const current = (currentShareholders && currentShareholders.length ? currentShareholders : [authority]).map(a => ({ pubkey: a, isWritable: true }));
     return instruction('fees', 'update_fee_shares_v2',
       { shareholders: shareholders.map(s => ({ address: pk(s.address), share_bps: s.bps })) },
-      { authority, mint, quote_mint: WSOL, token_program: TOKEN, sharing_config: sharingConfig },
+      { authority, mint, quote_mint: quoteOf(quote).mint, token_program: quoteOf(quote).program, sharing_config: sharingConfig },
       current
     ).instruction;
   }
 
-  function tradeAccounts({ user, mint, buybackRecipient }) {
+  function tradeAccounts({ user, mint, buybackRecipient, quote }) {
+    const q = quoteOf(quote);
     return {
-      user, base_mint: mint, quote_mint: WSOL, base_token_program: TOKEN_2022, quote_token_program: TOKEN,
+      user, base_mint: mint, quote_mint: q.mint, base_token_program: TOKEN_2022, quote_token_program: q.program,
       associated_base_user: ata(user, mint, TOKEN_2022),
-      associated_quote_user: ata(user, WSOL, TOKEN),
+      associated_quote_user: ata(user, q.mint, q.program),
       buyback_fee_recipient: buybackRecipient || BUYBACK_RECIPIENTS[0]
     };
   }
 
-  function buyExactIn({ user, mint, lamports, minTokensOut, buybackRecipient }) {
-    return instruction('pump', 'buy_exact_quote_in_v3', { spendable_quote_in: lamports, min_tokens_out: minTokensOut }, tradeAccounts({ user, mint, buybackRecipient })).instruction;
+  function buyExactIn({ user, mint, lamports, minTokensOut, buybackRecipient, quote }) {
+    return instruction('pump', 'buy_exact_quote_in_v3', { spendable_quote_in: lamports, min_tokens_out: minTokensOut }, tradeAccounts({ user, mint, buybackRecipient, quote })).instruction;
   }
 
-  function sell({ user, mint, amount, minLamportsOut, buybackRecipient }) {
-    return instruction('pump', 'sell_v3', { amount, min_sol_output: minLamportsOut }, tradeAccounts({ user, mint, buybackRecipient })).instruction;
+  function sell({ user, mint, amount, minLamportsOut, buybackRecipient, quote }) {
+    return instruction('pump', 'sell_v3', { amount, min_sol_output: minLamportsOut }, tradeAccounts({ user, mint, buybackRecipient, quote })).instruction;
   }
 
-  function sweepCreatorFee({ payer, mint, creator }) {
+  function sweepCreatorFee({ payer, mint, creator, quote }) {
     return instruction('pump', 'sweep_creator_fee', {}, {
-      payer, base_mint: mint, quote_mint: WSOL, quote_token_program: TOKEN,
+      payer, base_mint: mint, quote_mint: quoteOf(quote).mint, quote_token_program: quoteOf(quote).program,
       recipient: creatorVaultOf(creator)
     }).instruction;
   }
 
   // Pays the coin's waiting creator fees out to its shareholders, in the order stored in the sharing config.
-  function distribute({ payer, mint, shareholders }) {
+  function distribute({ payer, mint, shareholders, quote }) {
     const sharingConfig = sharingConfigOf(mint);
     return instruction('pump', 'distribute_creator_fees_v2', { initialize_ata: false }, {
-      payer, mint, quote_mint: WSOL, quote_token_program: TOKEN,
+      payer, mint, quote_mint: quoteOf(quote).mint, quote_token_program: quoteOf(quote).program,
       'bonding_curve.creator': sharingConfig
     }, shareholders.map(a => ({ pubkey: a, isWritable: true }))).instruction;
   }

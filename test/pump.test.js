@@ -87,3 +87,20 @@ test('decodes the BondingCurve account', () => {
   assert.ok(f.length > 6);
   assert.throws(() => P.decodeAccount(idl, 'BondingCurve', Buffer.alloc(100), web3), /Not a BondingCurve/);
 });
+
+test('a coin paired with another token passes the quote accounts, and the SOL pair is unchanged', () => {
+  const web3 = require('./fakeweb3.js');
+  const B = P.createBuilder(web3);
+  const k = () => new web3.PublicKey(require('node:crypto').randomBytes(32));
+  const mint = k(), user = k(), Q = k();
+  const TOKEN_2022 = 'TokenzQdBNbLqP5VEhdkAS6EPFLC1PHnBqCXEpPxuEb';
+  const plain = B.createCoin({ mint, user, name: 'A', symbol: 'A', uri: 'https://x' });
+  const paired = B.createCoin({ mint, user, name: 'A', symbol: 'A', uri: 'https://x', quote: { mint: Q, program: TOKEN_2022 } });
+  assert.equal(paired.keys.length, plain.keys.length + 4);
+  assert.equal(paired.keys[plain.keys.length].pubkey.toBase58(), Q.toBase58());
+  assert.equal(paired.keys[plain.keys.length + 2].pubkey.toBase58(), TOKEN_2022);
+  const buyPaired = B.buyExactIn({ user, mint, lamports: 1000n, minTokensOut: 1n, quote: { mint: Q, program: TOKEN_2022 } });
+  assert.ok(buyPaired.keys.some(x => x.pubkey.toBase58() === Q.toBase58()));
+  const buySol = B.buyExactIn({ user, mint, lamports: 1000n, minTokensOut: 1n });
+  assert.ok(buySol.keys.some(x => x.pubkey.toBase58() === P.WSOL));
+});

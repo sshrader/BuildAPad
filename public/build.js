@@ -34,25 +34,42 @@
   const KINDS = { sol: 'f-pair-sol', stock: 'f-pair-stock', other: 'f-pair-other' };
   // Only one box can be ticked at a time. Unticking the ticked one puts it back on SOL.
   function pickKind(k) { Object.keys(KINDS).forEach(x => { $(KINDS[x]).checked = x === k; }); if (k === 'sol') pendingPair = ''; paintPairs(); }
+  // The pair picker is one box: type to filter, or open the list and choose. Arrow keys and Enter work too.
+  let comboOpen = false, comboIndex = -1, comboShown = [];
+  const labelOf = p => p.symbol + ' · ' + p.name;
+  function closeCombo() { comboOpen = false; comboIndex = -1; $('f-pair-list').hidden = true; $('f-pair-q').setAttribute('aria-expanded', 'false'); $('f-pair-q').removeAttribute('aria-activedescendant'); }
+  function choosePair(mint) { pendingPair = mint; closeCombo(); paintPairs(); }
+  function paintList() {
+    const list = $('f-pair-list'), box = $('f-pair-q');
+    const on = { stock: isOn(KINDS.stock), other: isOn(KINDS.other) };
+    const chosen = pairsAll.find(p => p.mint === pendingPair);
+    // While the box still shows the chosen coin's own name, the whole list is shown, not just that one.
+    const q = chosen && box.value === labelOf(chosen) ? '' : box.value.trim().toLowerCase();
+    comboShown = pairsAll.filter(p => on[p.kind] && (!q || (p.symbol + ' ' + p.name).toLowerCase().indexOf(q) >= 0)).slice(0, 100);
+    list.textContent = '';
+    if (!comboShown.length) { const li = document.createElement('li'); li.className = 'none'; li.textContent = 'No match'; list.appendChild(li); }
+    comboShown.forEach((p, i) => {
+      const li = document.createElement('li');
+      li.id = 'f-pair-o' + i; li.setAttribute('role', 'option'); li.textContent = labelOf(p);
+      li.setAttribute('aria-selected', p.mint === pendingPair ? 'true' : 'false');
+      if (i === comboIndex) li.className = 'act';
+      // mousedown, not click, so the box does not lose focus (and close the list) first.
+      li.addEventListener('mousedown', e => { e.preventDefault(); choosePair(p.mint); });
+      list.appendChild(li);
+    });
+    list.hidden = false; comboOpen = true; box.setAttribute('aria-expanded', 'true');
+    if (comboIndex >= 0 && comboShown[comboIndex]) box.setAttribute('aria-activedescendant', 'f-pair-o' + comboIndex); else box.removeAttribute('aria-activedescendant');
+  }
   function paintPairs() {
-    const sel = $('f-pair'), q = $('f-pair-q').value.trim().toLowerCase();
+    const box = $('f-pair-q');
     const on = { stock: isOn(KINDS.stock), other: isOn(KINDS.other) };
     $('f-pair-pick').hidden = !(on.stock || on.other);
-    const cur = pendingPair;
-    sel.textContent = '';
-    const none = document.createElement('option'); none.value = ''; none.textContent = on.stock ? 'Choose a stock…' : 'Choose a coin…'; sel.appendChild(none);
-    const groups = { stock: 'Stocks', other: 'Crypto, memes and others' };
-    ['stock', 'other'].forEach(k => {
-      if (!on[k]) return;
-      const items = pairsAll.filter(p => p.kind === k && (!q || (p.symbol + ' ' + p.name).toLowerCase().indexOf(q) >= 0 || p.mint === cur));
-      if (!items.length) return;
-      const g = document.createElement('optgroup'); g.label = groups[k];
-      items.forEach(p => { const o = document.createElement('option'); o.value = p.mint; o.textContent = p.symbol + ' · ' + p.name; g.appendChild(o); });
-      sel.appendChild(g);
-    });
-    if (!Array.from(sel.options).some(o => o.value === cur)) pendingPair = '';
-    sel.value = pendingPair;
+    if (!(on.stock || on.other)) closeCombo();
+    // A pair that is not in the open category (or not on the list) is dropped.
+    if (pendingPair && !pairsAll.some(p => p.mint === pendingPair && on[p.kind])) pendingPair = '';
     const chosen = pairsAll.find(p => p.mint === pendingPair);
+    if (document.activeElement !== box || !comboOpen) box.value = chosen ? labelOf(chosen) : '';
+    box.placeholder = on.stock ? 'Search stocks by name or ticker' : 'Search by name or ticker';
     $('f-pair-now').textContent = chosen ? 'Pair: ' + chosen.symbol + ' · ' + chosen.name : ''; $('f-pair-now').hidden = !chosen;
     $('f-pair-note').hidden = !chosen;
     $('f-pair-chose').hidden = !(on.stock || on.other) || Boolean(chosen);
@@ -66,8 +83,23 @@
     pairsAll = (b && b.pairs) || [];
     if (!pairsAll.length) return;
     pairsLoaded = true; $('g-pair-box').hidden = false; syncPairBoxes();
-    $('f-pair').addEventListener('change', () => { pendingPair = $('f-pair').value; paintPairs(); });
-    $('f-pair-q').addEventListener('input', paintPairs);
+    const box = $('f-pair-q');
+    box.addEventListener('focus', () => { box.select(); comboIndex = -1; paintList(); });
+    box.addEventListener('click', () => { if (!comboOpen) { comboIndex = -1; paintList(); } });
+    box.addEventListener('input', () => { if (!box.value.trim()) pendingPair = ''; comboIndex = comboShown.length ? 0 : -1; paintList(); });
+    box.addEventListener('blur', () => { closeCombo(); paintPairs(); });
+    box.addEventListener('keydown', e => {
+      if (e.key === 'ArrowDown' || e.key === 'ArrowUp') {
+        e.preventDefault();
+        if (!comboOpen) { paintList(); return; }
+        const n = comboShown.length; if (!n) return;
+        comboIndex = e.key === 'ArrowDown' ? (comboIndex + 1) % n : (comboIndex - 1 + n) % n;
+        paintList();
+        const act = document.getElementById('f-pair-o' + comboIndex); if (act && act.scrollIntoView) act.scrollIntoView({ block: 'nearest' });
+      } else if (e.key === 'Enter') {
+        if (comboOpen && comboShown[comboIndex]) { e.preventDefault(); choosePair(comboShown[comboIndex].mint); }
+      } else if (e.key === 'Escape') { if (comboOpen) { e.preventDefault(); closeCombo(); paintPairs(); } }
+    });
     Object.keys(KINDS).forEach(k => $(KINDS[k]).addEventListener('change', () => pickKind($(KINDS[k]).checked ? k : 'sol')));
   }).catch(() => { /* picker stays hidden */ });
 

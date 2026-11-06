@@ -132,15 +132,14 @@
         <label class="check"><input type="checkbox" id="f-pair-other"> Crypto / Memes</label>
         <p class="pairnow" id="f-pair-now" hidden></p>
         <div class="field sub" id="f-pair-pick" hidden>
-          <label class="field">Search the list
-            <input type="text" id="f-pair-q" placeholder="Tesla, BTC, NVDA…" autocomplete="off" spellcheck="false">
-          </label>
-          <label class="field">Pick one
-            <select id="f-pair"><option value="">SOL (default)</option></select>
-          </label>
+          <label for="f-pair-q" id="f-pair-lab">Choose the pair: type to search or open the list</label>
+          <div class="combo">
+            <input type="text" id="f-pair-q" role="combobox" aria-expanded="false" aria-controls="f-pair-list" aria-autocomplete="list" aria-labelledby="f-pair-lab" placeholder="Search by name or ticker" autocomplete="off" spellcheck="false">
+            <ul id="f-pair-list" role="listbox" aria-labelledby="f-pair-lab" hidden></ul>
+          </div>
         </div>
         <p class="hint" id="f-pair-chose" hidden>Nothing picked yet, so your pad stays on SOL until you choose one.</p>
-        <p class="hint" id="f-pair-note" hidden>Preview: coins on a paired pad cannot be launched yet. Launching with a pair is still being built and tested, so keep SOL for a live pad.</p>
+        <p class="hint" id="f-pair-note" hidden>Coins on this pad trade against this token, not SOL. Buyers need to hold it to buy, and creator fees are paid out in it.</p>
       </section>
 
       <section class="group" aria-labelledby="g-rules">

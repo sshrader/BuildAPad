@@ -758,7 +758,8 @@ if (require.main === module) {
     priorityMicroLamports: env('PRIORITY_FEE_MICROLAMPORTS') === '' ? undefined : Number(env('PRIORITY_FEE_MICROLAMPORTS')),
     rpcUrl: process.env.LAUNCH_RPC_URL || undefined,
     pairsRpcUrl: process.env.PAIRS_RPC_URL || undefined,
-    pairTrade: process.env.PAIRS_TRADE === 'yes'
+    pairTrade: process.env.PAIRS_TRADE === 'yes',
+    showStocks: process.env.PAIRS_STOCKS === 'yes'
   });
   const launchesFile = env('LAUNCHES_FILE') || (dataDir ? path.join(dataDir, cluster === 'devnet' ? 'launches.json' : 'launches.' + cluster + '.json') : '');
   const padStore = createPadStore({

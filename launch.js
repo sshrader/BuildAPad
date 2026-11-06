@@ -556,8 +556,8 @@ function createLauncher(opts) {
         const m = meta[x.mint] || { symbol: '', name: '' };
         const symbol = m.symbol.replace(/[^\w.\-$]/g, '').slice(0, 12) || x.mint.slice(0, 4) + '…';
         const name = m.name.replace(/[\u0000-\u001f<>]/g, '').slice(0, 60) || symbol;
-        return { mint: x.mint, symbol, name, kind: /xstock|securities|etf/i.test(m.name) ? 'stock' : 'other' };
-      }).sort((a, b) => (a.kind === b.kind ? a.symbol.localeCompare(b.symbol) : a.kind === 'stock' ? -1 : 1));
+        return { mint: x.mint, symbol, name, kind: /stock|securities|\betf\b/i.test(m.name) ? 'stock' : 'other' };
+      }).filter(x => o.showStocks || x.kind !== 'stock').sort((a, b) => (a.kind === b.kind ? a.symbol.localeCompare(b.symbol) : a.kind === 'stock' ? -1 : 1));
       const value = { pairs: out, cluster: pairsRpc === rpcUrl ? cluster : 'mainnet-beta', launchReady: false };
       pairsCache = { at: nowMs, value };
       return { status: 200, body: value };

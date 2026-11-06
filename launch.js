@@ -63,6 +63,7 @@ function createLauncher(opts) {
 
   // The platform's cut of each coin's creator fees, paid to this wallet through pump.fun's fee sharing.
   const platformWallet = typeof o.platformWallet === 'string' && B58_RE.test(o.platformWallet) ? o.platformWallet : '';
+  const holderFeeSol = Number.isFinite(Number(o.holderLaunchFeeSol)) && Number(o.holderLaunchFeeSol) >= 0 ? Number(o.holderLaunchFeeSol) : 0.05;
   const platformPct = o.platformSharePct === undefined || o.platformSharePct === '' ? 20 : Number(o.platformSharePct);
   if (!Number.isInteger(platformPct) || platformPct < 1 || platformPct > 50) throw new Error('PLATFORM_SHARE_PCT must be a whole number from 1 to 50.');
   const enabled = Boolean(platformWallet);
@@ -72,7 +73,7 @@ function createLauncher(opts) {
   let tableCache = null;
 
   function info() {
-    const out = { enabled, cluster, protocol: 'pump.fun', atomic: Boolean(lookupTable), platformPct };
+    const out = { enabled, cluster, protocol: 'pump.fun', atomic: Boolean(lookupTable), platformPct, holderLaunchFeeSol: holderFeeSol };
     if (enabled) { out.split = { creatorPct: 100 - platformPct, platformPct }; out.platformWallet = platformWallet; }
     return out;
   }
@@ -209,6 +210,11 @@ function createLauncher(opts) {
       const c = await chain();
       const creatorPk = new c.web3.PublicKey(b.creator);
       const mintKp = c.web3.Keypair.generate();
+      // A holder rewards pad: the coin is created so that every creator fee goes to its holders, and the launcher pays a flat
+      // launch fee to the platform in the same transaction. There is no fee split to set up afterwards.
+      const holder = Boolean(ctx && ctx.pad && ctx.pad.holderRewards);
+      if (holder && ctx.pad.pair) return { status: 400, body: { error: 'holder_pair_unsupported' } };
+      if (holder && firstBuySol > 0) return { status: 400, body: { error: 'holder_buy_not_ready' } };
       // A pad with a pool pair other than SOL creates its coins against that token. The first buy for those is not built yet.
       let quote = null;
       if (ctx && ctx.pad && ctx.pad.pair) {
@@ -216,11 +222,12 @@ function createLauncher(opts) {
         quote = await quoteFromMint(c, ctx.pad.pair);
         if (!quote) return { status: 409, body: { error: 'pair_not_found' } };
       }
-      const ix = c.B.createCoin({ mint: mintKp.publicKey, user: creatorPk, name, symbol, uri, quote });
+      const ix = c.B.createCoin({ mint: mintKp.publicKey, user: creatorPk, name, symbol, uri, quote, holderReward: holder });
       const mint = mintKp.publicKey.toBase58();
       const table = await getTable(c);
       const atomic = Boolean(table);
       let ixs = budget(c, CU.create).concat([ix]);
+      if (holder && holderFeeSol > 0) ixs.push(c.B.transferSol({ from: creatorPk, to: platformWallet, lamports: Math.round(holderFeeSol * 1e9) }));
       if (atomic && firstBuySol > 0) {
         // The coin does not exist yet, so the buy is priced against a fresh curve from pump.fun's global settings.
         const glob = await readGlobal(c);
@@ -231,7 +238,7 @@ function createLauncher(opts) {
         ixs = budget(c, CU.create + CU.buy).concat([ix], buyInstructions(c, creatorPk, mint, fresh, firstBuySol, 1000, glob));
       }
       const transaction = await toTx(c, ixs, creatorPk, [mintKp], table);
-      return { status: 200, body: { transaction, mint, pool: mint, curve: c.B.bondingCurveOf(mintKp.publicKey).toBase58(), firstBuySol, atomic, pair: quote ? quote.mint.toBase58() : '', split: splitFor(ctx && ctx.pad), cluster } };
+      return { status: 200, body: { transaction, mint, pool: mint, curve: c.B.bondingCurveOf(mintKp.publicKey).toBase58(), firstBuySol, atomic, pair: quote ? quote.mint.toBase58() : '', holderRewards: holder, launchFeeSol: holder ? holderFeeSol : 0, split: holder ? { creatorPct: 0, ownerPct: 0, platformPct: 0 } : splitFor(ctx && ctx.pad), cluster } };
     } catch (err) {
       logger.error('Launch prepare failed: ' + (err && err.stack ? err.stack : 'unknown error'));
       return { status: 502, body: { error: 'prepare_failed' } };
@@ -256,6 +263,8 @@ function createLauncher(opts) {
       const sharing = c.B.sharingConfigOf(b.mint).toBase58();
       const table = await getTable(c);
       const quote = await quoteOfCurve(c, curve);
+      // A holder rewards coin has no fee split to set: its creator fee goes to holders on its own.
+      if (curve.is_holder_reward) return { status: 200, body: { step: 'done' } };
       if (curve.creator === b.creator) {
         // Fees that have built up on the curve must be swept before the creator is swapped for the split.
         const ixs = [];
@@ -371,7 +380,7 @@ function createLauncher(opts) {
           paired: Boolean(quote), pairMint: quote ? quote.mint.toBase58() : '',
           progress: complete ? 1 : progress, marketCapSol,
           migrated: complete, curveFull: complete,
-          splitOk: curve.creator === c.B.sharingConfigOf(mint).toBase58(), cluster
+          splitOk: Boolean(curve.is_holder_reward) || curve.creator === c.B.sharingConfigOf(mint).toBase58(), holderRewards: Boolean(curve.is_holder_reward), cluster
         }
       };
     } catch (err) {
@@ -467,6 +476,8 @@ function createLauncher(opts) {
       const c = await chain();
       const curve = await readCurve(c, mint);
       if (!curve) return { status: 404, body: { error: 'pool_not_found' } };
+      // A holder rewards coin pays its creator fee to its holders through pump.fun: nothing waits here and nothing is split.
+      if (curve.is_holder_reward) return { status: 200, body: { mint, holderRewards: true, paired: false, pairMint: '', pendingSol: 0, splitOk: true, creatorPct: 0, platformPct: 0, shares: [], platformWallet, cluster } };
       const splitOk = curve.creator === c.B.sharingConfigOf(mint).toBase58();
       const feeQuote = await quoteOfCurve(c, curve);
       // Who gets what is read from the coin's own fee split on-chain, so a pad's owner share shows up too.
@@ -500,6 +511,7 @@ function createLauncher(opts) {
       const curve = await readCurve(c, b.pool);
       if (!curve) return { status: 404, body: { error: 'pool_not_found' } };
       if (curve.complete) return { status: 409, body: { error: 'migrated' } };
+      if (curve.is_holder_reward) return { status: 409, body: { error: 'holder_rewards' } };
       if (curve.creator !== c.B.sharingConfigOf(b.pool).toBase58()) return { status: 409, body: { error: 'split_not_set' } };
       const waiting = await pending(c, b.pool, curve);
       if (waiting < 0.00001) return { status: 409, body: { error: 'nothing_to_claim' } };

@@ -60,7 +60,8 @@
     const sm = document.createElement('small'); sm.textContent = '/p/' + p.slug;
     nm.appendChild(b); nm.appendChild(sm);
     { const pc = document.createElement('span'); pc.className = 'pairchip'; pc.textContent = p.pairSymbol ? p.pairSymbol + ' pair' + (p.pairKind === 'stock' ? ' · Stock' : p.pairKind === 'other' ? ' · Crypto / Memes' : '') : 'SOL pair'; nm.appendChild(pc); }
-    if (p.launcherPct !== null && p.launcherPct !== undefined) { const fc = document.createElement('span'); fc.className = 'pairchip feechip'; fc.textContent = 'Launcher ' + p.launcherPct + '% · Owner ' + p.ownerPct + '% · ' + window.PAD.platform + ' ' + p.platformPct + '%'; fc.title = p.launcherPct + '% coin launcher · ' + p.ownerPct + '% pad owner · ' + p.platformPct + '% ' + window.PAD.platform + ' (of creator fees, set on-chain at launch)'; nm.appendChild(fc); }
+    if (p.holderRewards) { const fc = document.createElement('span'); fc.className = 'pairchip feechip'; fc.textContent = 'Holders get 100% · ' + (p.holderFeeSol || 0.05) + ' SOL launch fee'; fc.title = 'All creator fees go to the coin holders. Launching costs a flat fee paid to ' + window.PAD.platform; nm.appendChild(fc); }
+    else if (p.launcherPct !== null && p.launcherPct !== undefined) { const fc = document.createElement('span'); fc.className = 'pairchip feechip'; fc.textContent = 'Launcher ' + p.launcherPct + '% · Owner ' + p.ownerPct + '% · ' + window.PAD.platform + ' ' + p.platformPct + '%'; fc.title = p.launcherPct + '% coin launcher · ' + p.ownerPct + '% pad owner · ' + p.platformPct + '% ' + window.PAD.platform + ' (of creator fees, set on-chain at launch)'; nm.appendChild(fc); }
     a.appendChild(logo); a.appendChild(nm);
     const nums = document.createElement('span'); nums.className = 'bnums';
     [[p.coins, p.coins === 1 ? 'coin' : 'coins'], (p.pairSymbol && Number.isFinite(p.raisedUsd) ? [AnimalNet.usd(p.raisedUsd), 'raised'] : [fmt(p.raisedSol), (p.pairSymbol || 'SOL') + ' raised']), [p.graduated, 'graduated']].forEach(x => {
@@ -110,7 +111,8 @@
     const sm = document.createElement('small'); sm.textContent = '$' + c.symbol;
     nm.appendChild(b); nm.appendChild(sm);
     { const pc = document.createElement('span'); pc.className = 'pairchip'; pc.textContent = c.pairSymbol ? c.pairSymbol + ' pair' + (c.pairKind === 'stock' ? ' · Stock' : c.pairKind === 'other' ? ' · Crypto / Memes' : '') : 'SOL pair'; nm.appendChild(pc); }
-    if (c.launcherPct !== null && c.launcherPct !== undefined) { const fc = document.createElement('span'); fc.className = 'pairchip feechip'; fc.textContent = 'Launcher ' + c.launcherPct + '% · Owner ' + c.ownerPct + '% · ' + window.PAD.platform + ' ' + c.platformPct + '%'; fc.title = c.launcherPct + '% coin launcher · ' + c.ownerPct + '% pad owner · ' + c.platformPct + '% ' + window.PAD.platform + ' (of creator fees, set on-chain at launch)'; nm.appendChild(fc); }
+    if (c.holderRewards) { const fc = document.createElement('span'); fc.className = 'pairchip feechip'; fc.textContent = 'Holders get 100% · ' + (c.holderFeeSol || 0.05) + ' SOL launch fee'; fc.title = 'All creator fees go to the coin holders. Launching costs a flat fee paid to ' + window.PAD.platform; nm.appendChild(fc); }
+    else if (c.launcherPct !== null && c.launcherPct !== undefined) { const fc = document.createElement('span'); fc.className = 'pairchip feechip'; fc.textContent = 'Launcher ' + c.launcherPct + '% · Owner ' + c.ownerPct + '% · ' + window.PAD.platform + ' ' + c.platformPct + '%'; fc.title = c.launcherPct + '% coin launcher · ' + c.ownerPct + '% pad owner · ' + c.platformPct + '% ' + window.PAD.platform + ' (of creator fees, set on-chain at launch)'; nm.appendChild(fc); }
     a.appendChild(logo); a.appendChild(nm);
     const nums = document.createElement('span'); nums.className = 'bnums';
     const pct = Math.max(0, Math.min(100, Math.round((c.progress || 0) * 100)));

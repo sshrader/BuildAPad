@@ -216,7 +216,7 @@ function createBuilder(web3) {
   const quoteOf = q => (q && q.mint ? { mint: pk(q.mint), program: pk(q.program || TOKEN) } : { mint: new PublicKey(WSOL), program: new PublicKey(TOKEN) });
   const QUOTE_CONTROL = () => pda([Buffer.from('quote-control')]);
 
-  function createCoin({ mint, user, name, symbol, uri, quote }) {
+  function createCoin({ mint, user, name, symbol, uri, quote, holderReward }) {
     const given = { mint, user, mayhem_token_vault: null };
     // The Mayhem token vault is the Token-2022 account of the Mayhem sol_vault for this mint.
     const first = resolveAccounts('pump', 'create_v2', { mint, user }, true);
@@ -233,7 +233,23 @@ function createBuilder(web3) {
         { pubkey: QUOTE_CONTROL(), isWritable: false }
       ];
     }
-    return instruction('pump', 'create_v2', { name, symbol, uri, creator: pk(user), is_mayhem_mode: false }, given, remaining).instruction;
+    // A holder rewards coin sends its whole creator fee to the coin's holders, through pump.fun. The three trailing options are
+    // written out so the last one can be set: no cashback, the standard fee rate, and holder rewards on.
+    const args = { name, symbol, uri, creator: pk(user), is_mayhem_mode: false };
+    if (holderReward) Object.assign(args, { is_cashback_enabled: [false], creator_fee_bps: [0], is_holder_reward: [true] });
+    return instruction('pump', 'create_v2', args, given, remaining).instruction;
+  }
+
+  // A plain SOL transfer (the System program's transfer instruction).
+  function transferSol({ from, to, lamports }) {
+    const data = Buffer.alloc(12);
+    data.writeUInt32LE(2, 0);
+    data.writeBigUInt64LE(BigInt(lamports), 4);
+    return new TransactionInstruction({
+      programId: new PublicKey(SYSTEM),
+      keys: [{ pubkey: pk(from), isSigner: true, isWritable: true }, { pubkey: pk(to), isSigner: false, isWritable: true }],
+      data
+    });
   }
 
   function createSharingConfig({ mint, payer }) {
@@ -316,7 +332,7 @@ function createBuilder(web3) {
 
   return {
     ata, bondingCurveOf, sharingConfigOf, creatorVaultOf, globalPda, createAtaIdempotent,
-    createCoin, createSharingConfig, createFeeVaultAtas, setShares, buyExactIn, sell, sweepCreatorFee, distribute, instruction, resolveAccounts
+    createCoin, transferSol, createSharingConfig, createFeeVaultAtas, setShares, buyExactIn, sell, sweepCreatorFee, distribute, instruction, resolveAccounts
   };
 }
 

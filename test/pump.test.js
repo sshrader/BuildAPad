@@ -124,3 +124,18 @@ test('createFeeVaultAtas makes the two fee-vault token accounts for the pair tok
   assert.equal(ixs.length, 2);
   assert.notEqual(ixs[0].keys[1].pubkey.toBase58(), ixs[1].keys[1].pubkey.toBase58());
 });
+
+test('a holder-rewards coin is created with the holder flag and a zero cashback / fee override', () => {
+  const web3 = require('./fakeweb3.js');
+  const B = P.createBuilder(web3);
+  const k = () => new web3.PublicKey(require('node:crypto').randomBytes(32));
+  const mint = k(), user = k();
+  const plain = B.createCoin({ mint, user, name: 'A', symbol: 'A', uri: 'https://x' });
+  const holder = B.createCoin({ mint, user, name: 'A', symbol: 'A', uri: 'https://x', holderReward: true });
+  assert.ok(holder.data.length > plain.data.length);
+  assert.equal(holder.data[holder.data.length - 1], 1, 'is_holder_reward = Some(true)');
+  const to = k();
+  const tr = B.transferSol({ from: user, to, lamports: 50000000 });
+  assert.equal(tr.data.readUInt32LE(0), 2);
+  assert.equal(Number(tr.data.readBigUInt64LE(4)), 50000000);
+});

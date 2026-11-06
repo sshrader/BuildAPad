@@ -117,7 +117,8 @@
     function fact(label, node) { add(f, 'dt', label); const dd = add(f, 'dd'); if (typeof node === 'string') dd.textContent = node; else dd.appendChild(node); }
     if (c.chat !== false) { startReport(box, c); startChat(box, c); }
     const sp = cfg && cfg.split;
-    if (sp && Number.isFinite(sp.creatorPct) && Number.isFinite(sp.platformPct)) {
+    if (c.holderRewards) fact('Creator fees', 'This is a holder-rewards coin: pump.fun pays all creator fees to the coin\'s holders automatically.');
+    else if (sp && Number.isFinite(sp.creatorPct) && Number.isFinite(sp.platformPct)) {
       fact('Creator fees', 'Trades on this coin pay a creator fee, shared on-chain between the wallets in its split (shown above).');
     }
     if (Number(c.devBuySol) > 0) fact('Creator first buy', 'The creator bought ' + Number(c.devBuySol) + ' SOL worth in the launch transaction, before anyone else could.');
@@ -150,6 +151,7 @@
     };
     function draw() {
       if (!info) return;
+      if (info.holderRewards) { text.textContent = 'Holder rewards: all creator fees on this coin go to its holders automatically. Nothing to send out.'; btn.hidden = true; fix.hidden = true; return; }
       text.textContent = 'Creator fees waiting: ' + (info.paired && Number.isFinite(info.usdPerUnit) ? AnimalNet.usd(info.pendingSol * info.usdPerUnit) + ' (' + info.pendingSol.toLocaleString(undefined, { maximumFractionDigits: 4 }) + ' ' + (c.pairSymbol || 'pair token') + ')' : info.pendingSol.toFixed(6) + ' ' + (c.pairSymbol || (info.paired ? 'pair token' : 'SOL'))) +
         (info.splitOk ? ' · split ' + window.feeLine(info) : ' · fee split not set yet');
       btn.hidden = false;

@@ -60,13 +60,16 @@ function normalizeSettings(raw) {
     rules: { requireFirstBuy: rules.requireFirstBuy === true, minFirstBuySol: 0 },
     access: { allow, deny },
     page: { about: clean(page.about, 500) },
-    pair: { mint: '', symbol: '', name: '' }
+    pair: { mint: '', symbol: '', name: '' },
+    holderRewards: r.holderRewards === true
   };
   const pr = r.pair && typeof r.pair === 'object' ? r.pair : {};
   if (pr.mint) {
     if (typeof pr.mint !== 'string' || !B58.test(pr.mint.trim())) return { error: 'bad_pair' };
     settings.pair = { mint: pr.mint.trim(), symbol: clean(pr.symbol, 12), name: clean(pr.name, 60) };
   }
+  // A holder rewards pad cannot also pick a pool pair (the two have not been proven together).
+  if (settings.holderRewards && settings.pair.mint) return { error: 'holder_pair' };
   if (settings.rules.requireFirstBuy) {
     const m = rules.minFirstBuySol === undefined ? 0.05 : Number(rules.minFirstBuySol);
     if (!Number.isFinite(m) || m < MIN_BUY || m > MAX_BUY) return { error: 'bad_min_buy' };
@@ -165,6 +168,8 @@ function createPadStore(opts) {
     if (links === null) return { status: 400, body: { error: 'bad_links' } };
     const ns = normalizeSettings(b.settings);
     if (ns.error) return { status: 400, body: { error: ns.error, word: ns.word } };
+    // Holder rewards pads pay the whole creator fee to holders, so there is no owner share to set.
+    if (ns.settings.holderRewards && ownerPct !== 0) return { status: 400, body: { error: 'bad_fee_share', max: 0 } };
     let banner = null;
     if (b.banner !== undefined && b.banner !== null && b.banner !== '') {
       banner = readImage(b.banner, MAX_BANNER_BYTES);
@@ -227,6 +232,8 @@ function createPadStore(opts) {
     if (b.banner !== undefined && b.banner !== null && b.banner !== '') { banner = readImage(b.banner, MAX_BANNER_BYTES); if (!banner) return { status: 400, body: { error: 'bad_banner' } }; }
     if (!allowed((ctx && ctx.ip) || 'unknown')) return { status: 429, body: { error: 'rate_limited' } };
 
+    // How a pad pays creator fees is fixed when it is built: switching it later would leave its coins on a different model.
+    ns.settings.holderRewards = settingsOf(e).holderRewards === true;
     const next = Object.assign({}, e, { tagline, accent, corners, links, settings: ns.settings });
     if (logo) {
       next.logoExt = logo.ext === 'jpg' ? 'jpg' : 'png';
@@ -291,7 +298,7 @@ function createPadStore(opts) {
       slug: e.slug, ownerWallet: e.ownerWallet, payoutWallet: e.payoutWallet || e.ownerWallet, ownerPct: e.ownerPct, logoUrl: '/pad-logo/' + e.slug + '.' + e.logoExt, links: e.links || {},
       about: s.page.about, bannerUrl: bannerUrl(e), aiCoinMaker: s.ai.coinMaker, mascotChat: s.ai.chat, mascotName: s.ai.mascotName,
       requireFirstBuy: s.rules.requireFirstBuy, minFirstBuySol: s.rules.minFirstBuySol, private: s.access.allow.length > 0,
-      pairMint: s.pair.mint, pairSymbol: s.pair.symbol, pairName: s.pair.name
+      pairMint: s.pair.mint, pairSymbol: s.pair.symbol, pairName: s.pair.name, holderRewards: s.holderRewards === true
     };
     return pad;
   }

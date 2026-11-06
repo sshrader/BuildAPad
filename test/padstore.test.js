@@ -275,3 +275,19 @@ test('a pad can carry a pool pair, and a bad pair address is refused', () => {
   assert.equal(normalizeSettings({}).settings.pair.mint, '');
   assert.equal(normalizeSettings({ pair: { mint: 'not a key!' } }).error, 'bad_pair');
 });
+
+test('a holder-rewards pad pays the owner nothing, cannot also carry a pool pair, and stays that way', () => {
+  const { normalizeSettings } = require('../padstore.js');
+  assert.equal(normalizeSettings({}).settings.holderRewards, false);
+  assert.equal(normalizeSettings({ holderRewards: true }).settings.holderRewards, true);
+  assert.equal(normalizeSettings({ holderRewards: true, pair: { mint: 'XsDoVfqeBukxuZHWhdvWHBhgEHjGNst4MLodqsJHzoB' } }).error, 'holder_pair');
+  const t = 9000000;
+  const store = createPadStore({ now: () => t, logger: quiet, platformPct: 10, perIpPerHour: 100 });
+  const w = wallet();
+  const bad = store.create(form(w, { slug: 'hold-bad', ownerPct: 10, settings: { holderRewards: true } }, t), { ip: '7.7.7.7' });
+  assert.equal(bad.status, 400);
+  assert.equal(bad.body.error, 'bad_fee_share');
+  const ok = store.create(form(w, { slug: 'hold-ok', ownerPct: 0, settings: { holderRewards: true } }, t), { ip: '7.7.7.7' });
+  assert.equal(ok.status, 201);
+  assert.equal(store.settings('hold-ok').holderRewards, true);
+});

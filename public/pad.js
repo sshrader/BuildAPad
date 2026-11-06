@@ -21,6 +21,7 @@
   }
   if (ex.private) $('b-private').hidden = false;
   if (ex.pairMint) { $('b-pair').textContent = 'Pool pair: ' + (ex.pairSymbol || 'custom'); $('b-pair').title = ex.pairName || ''; $('b-pair').hidden = false; }
+  if (ex.holderRewards) { $('b-pair').textContent = 'Holders earn the creator fees'; $('b-pair').title = 'All creator fees go to the coin\'s holders. Launching costs a flat fee.'; $('b-pair').hidden = false; }
   if (ex.requireFirstBuy) {
     $('b-buy').textContent = 'First buy of ' + ex.minFirstBuySol + ' SOL or more required'; $('b-buy').hidden = false;
     const buy = $('l-buy'); if (buy) { buy.min = String(ex.minFirstBuySol); buy.placeholder = String(ex.minFirstBuySol); }
@@ -33,6 +34,15 @@
   // The fee split, from the server's real numbers
   fetch('/api/launch/config', { headers: { Accept: 'application/json' } }).then(r => r.json()).then(info => {
     const platform = info && Number.isFinite(info.platformPct) ? info.platformPct : 10;
+    if (ex.holderRewards) {
+      $('fb-l').style.width = '100%'; $('fb-o').style.width = '0%'; $('fb-p').style.width = '0%';
+      $('fk-l').textContent = '100%'; $('fk-o').textContent = '0%'; $('fk-p').textContent = '0%';
+      $('fk-pname').firstChild.textContent = (PAD.platform || 'Platform') + ' ';
+      $('fk-l').previousSibling.textContent = 'Coin holders ';
+      const fee = info && Number.isFinite(info.holderLaunchFeeSol) ? info.holderLaunchFeeSol : 0.05;
+      const n = $('holder-note'); if (n) { n.textContent = 'Every coin here pays all of its creator fees to its holders, automatically. Launching costs a flat ' + fee + ' SOL, paid to ' + (PAD.platform || 'the platform') + '.'; n.hidden = false; }
+      return;
+    }
     const owner = ex.ownerPct > 0 ? Math.min(ex.ownerPct, 50 - platform) : 0;
     const launcher = 100 - platform - owner;
     $('fb-l').style.width = launcher + '%'; $('fb-o').style.width = owner + '%'; $('fb-p').style.width = platform + '%';

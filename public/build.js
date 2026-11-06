@@ -111,7 +111,8 @@
       rules: { requireFirstBuy: isOn('f-rule-buy'), minFirstBuySol: Number($('f-rule-min').value) },
       access: { allow: parseWallets($('f-allow').value).list, deny: parseWallets($('f-deny').value).list },
       page: { about: $('f-about').value.trim() },
-      pair: { mint: pendingPair }
+      pair: { mint: pendingPair },
+      holderRewards: isOn('f-holder')
     };
   }
 
@@ -136,6 +137,12 @@
     });
     $('k-l').textContent = launcher + '%'; $('k-o').textContent = owner + '%'; $('k-p').textContent = cfg.platformPct + '%';
     $('f-pct-out').textContent = owner + '%';
+    const hold = isOn('f-holder');
+    $('g-fees-box').hidden = hold;
+    $('g-holder-box').hidden = !(cfg.holderRewards || hold);
+    $('f-holder').disabled = Boolean(editing) || Boolean(pendingPair);
+    $('f-holder-fee').textContent = String(cfg.holderLaunchFeeSol === undefined ? 0.05 : cfg.holderLaunchFeeSol);
+    if ($('g-pair-box')) $('g-pair-box').classList.toggle('off', hold);
     document.querySelectorAll('#f-swatches .swatch').forEach(b => b.setAttribute('aria-pressed', String(b.dataset.c === state.accent)));
     document.querySelectorAll('#f-corners button').forEach(b => b.setAttribute('aria-pressed', String(b.dataset.v === state.corners)));
     const ai = cfg.aiAvailable;
@@ -165,7 +172,8 @@
     paint();
   });
   $('f-payout').addEventListener('input', e => { state.payout = e.target.value.trim(); });
-  ['f-ai-maker', 'f-ai-chat', 'f-rule-buy'].forEach(id => $(id).addEventListener('change', paint));
+  ['f-ai-maker', 'f-ai-chat', 'f-rule-buy', 'f-holder'].forEach(id => $(id).addEventListener('change', paint));
+  $('f-holder').addEventListener('change', () => { if ($('f-holder').checked && pairsLoaded) pickKind('sol'); });
   window.BapImage.dropzone($('f-bdrop'), $('f-bfile'), pic => {
     state.banner = pic; state.removeBanner = false;
     $('f-bdrop-img').src = pic.dataUrl; $('f-bdrop-img').hidden = false; $('f-bdrop-empty').hidden = true;
@@ -268,7 +276,7 @@
       if (state.logo) payload.logo = state.logo.base64;
       if (state.banner) payload.banner = state.banner.base64;
       if (editing) { payload.removeBanner = state.removeBanner && !state.banner; payload.slug = editing.slug; }
-      else { payload.slug = state.slug; payload.ownerPct = state.ownerPct; payload.payoutWallet = state.payout || undefined; }
+      else { payload.slug = state.slug; payload.ownerPct = isOn('f-holder') ? 0 : state.ownerPct; payload.payoutWallet = state.payout || undefined; }
       const res = await fetch(editing ? '/api/pads/' + editing.slug + '/update' : '/api/pads', {
         method: 'POST', headers: { 'Content-Type': 'application/json' }, body: JSON.stringify(payload)
       });
@@ -306,6 +314,7 @@
     $('f-rule-buy').checked = Boolean(rules.requireFirstBuy); if (rules.minFirstBuySol) $('f-rule-min').value = String(rules.minFirstBuySol);
     $('f-allow').value = (acc.allow || []).join('\n'); $('f-deny').value = (acc.deny || []).join('\n');
     $('f-about').value = (s.page && s.page.about) || '';
+    $('f-holder').checked = s.holderRewards === true;
     pendingPair = (s.pair && s.pair.mint) || ''; if (pairsLoaded) syncPairBoxes();
     $('f-drop-img').src = p.logoUrl; $('f-drop-img').hidden = false; $('f-drop-empty').hidden = true;
     $('pv-img').src = p.logoUrl; $('pv-img').hidden = false; $('pv-letter').hidden = true;

@@ -39,7 +39,7 @@ test('the fee split is validated, and launching is off without a platform wallet
   assert.throws(() => createLauncher({ platformWallet: PLATFORM, platformSharePct: 80 }), /PLATFORM_SHARE_PCT/);
   assert.throws(() => createLauncher({ platformWallet: PLATFORM, platformSharePct: 2.5 }), /PLATFORM_SHARE_PCT/);
   const on = createLauncher({ platformWallet: PLATFORM });
-  assert.deepEqual(on.info(), { enabled: true, cluster: 'devnet', protocol: 'pump.fun', atomic: false, platformPct: 20, platformWallet: PLATFORM, split: { creatorPct: 80, platformPct: 20 } });
+  assert.deepEqual(on.info(), { enabled: true, cluster: 'devnet', protocol: 'pump.fun', atomic: false, platformPct: 20, holderLaunchFeeSol: 0.05, platformWallet: PLATFORM, split: { creatorPct: 80, platformPct: 20 } });
   assert.equal(createLauncher({ platformWallet: PLATFORM, platformSharePct: '30' }).info().split.creatorPct, 70);
   assert.equal(createLauncher({}).info().enabled, false);
 });
@@ -381,7 +381,7 @@ test('server: launch routes work, and POST is allowed nowhere else', async () =>
   const { launcher, st } = make();
   await withServer({ feed, launcher }, async base => {
     const cfg = await (await fetch(base + '/api/launch/config')).json();
-    assert.deepEqual(cfg, { enabled: true, cluster: 'devnet', protocol: 'pump.fun', atomic: false, platformPct: 20, platformWallet: PLATFORM, split: { creatorPct: 80, platformPct: 20 } });
+    assert.deepEqual(cfg, { enabled: true, cluster: 'devnet', protocol: 'pump.fun', atomic: false, platformPct: 20, holderLaunchFeeSol: 0.05, platformWallet: PLATFORM, split: { creatorPct: 80, platformPct: 20 } });
     const post = (p, body) => fetch(base + p, { method: 'POST', headers: { 'Content-Type': 'application/json' }, body });
     const ok = await post('/api/launch/prepare', JSON.stringify(good));
     assert.equal(ok.status, 200);
@@ -558,6 +558,21 @@ test('a pad with a pool pair creates its coin against that token, and a first bu
   assert.equal(withBuy.body.error, 'pair_buy_not_ready');
   const missing = await launcher.prepare(good, Object.assign({}, ctx, { pad: { pair: key() } }));
   assert.equal(missing.body.error, 'pair_not_found');
+});
+
+test('a holder-rewards pad charges the flat launch fee, has no fee split, and refuses a first buy or a pair', async () => {
+  const { launcher } = make({}, {});
+  const hctx = Object.assign({}, ctx, { pad: { holderRewards: true, ownerPct: 0 } });
+  const plain = await launcher.prepare(good, ctx);
+  const r = await launcher.prepare(good, hctx);
+  assert.equal(r.status, 200);
+  assert.equal(r.body.holderRewards, true);
+  assert.equal(r.body.launchFeeSol, 0.05);
+  assert.equal(tx(r.body.transaction).instructions.length, tx(plain.body.transaction).instructions.length + 1);
+  const buy = await launcher.prepare(Object.assign({}, good, { firstBuySol: 0.1 }), hctx);
+  assert.equal(buy.body.error, 'holder_buy_not_ready');
+  const pair = await launcher.prepare(good, Object.assign({}, hctx, { pad: { holderRewards: true, pair: key() } }));
+  assert.equal(pair.body.error, 'holder_pair_unsupported');
 });
 
 test('pairPrices reads a USD price per token from the RPC asset lookup and caches it', async () => {

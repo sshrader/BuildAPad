@@ -470,13 +470,15 @@ function createApp(opts) {
           padSlug = action === 'prepare' ? String(body.pad || '') : (launches ? launches.padOf(String(body.mint || '')) : '');
           const rec = padSlug ? padStore.get(padSlug) : null;
           if (action === 'prepare' && padSlug && !rec) return send(res, 400, JSON.stringify({ error: 'bad_pad' }), noStore);
-          if (rec) padCtx = { owner: rec.payoutWallet || rec.ownerWallet, ownerPct: rec.ownerPct, pair: process.env.PAIRS_LAUNCH === 'yes' && rec.settings.pair ? rec.settings.pair.mint : '' };
+          if (rec) padCtx = { owner: rec.payoutWallet || rec.ownerWallet, ownerPct: rec.ownerPct, pair: process.env.PAIRS_LAUNCH === 'yes' && rec.settings.pair ? rec.settings.pair.mint : '', holderRewards: rec.settings.holderRewards === true };
           if (rec && action === 'prepare') {
             // The pad's rules, checked here from the server's own records.
             const why = typeof body.creator === 'string' ? padStore.accessFor(padSlug, body.creator) : '';
             if (why) return send(res, 403, JSON.stringify({ error: 'not_allowed', reason: why }), noStore);
             // Launching with a pool pair other than SOL is not switched on yet: the launch steps still assume SOL.
             if (rec.settings.pair && rec.settings.pair.mint && process.env.PAIRS_LAUNCH !== 'yes') return send(res, 409, JSON.stringify({ error: 'pair_not_ready', pair: rec.settings.pair.symbol }), noStore);
+            // Holder-rewards pads need pump.fun's holder-rewards coins, which are switched on per site.
+            if (rec.settings.holderRewards && process.env.HOLDER_REWARDS !== 'yes') return send(res, 409, JSON.stringify({ error: 'holder_not_ready' }), noStore);
             const rules = rec.settings.rules;
             if (rules.requireFirstBuy && !(Number(body.firstBuySol) >= rules.minFirstBuySol)) return send(res, 400, JSON.stringify({ error: 'first_buy_required', min: rules.minFirstBuySol }), noStore);
           }
@@ -504,7 +506,7 @@ function createApp(opts) {
     // Launchpads: the list, one pad, and the numbers the builder needs (what the platform keeps, the most an owner can take).
     if (pathname === '/api/builder/config') {
       const info = launcher ? launcher.info() : { enabled: false, cluster: 'devnet', platformPct: 10 };
-      const body = { enabled: Boolean(padStore && info.enabled), cluster: info.cluster, platformPct: padStore ? padStore.platformPct : info.platformPct, maxOwnerPct: padStore ? padStore.maxOwnerPct : 0, aiAvailable: Boolean(art.info().enabled), maxListSize: 100 };
+      const body = { enabled: Boolean(padStore && info.enabled), cluster: info.cluster, platformPct: padStore ? padStore.platformPct : info.platformPct, maxOwnerPct: padStore ? padStore.maxOwnerPct : 0, aiAvailable: Boolean(art.info().enabled), maxListSize: 100, holderRewards: process.env.HOLDER_REWARDS === 'yes', holderLaunchFeeSol: info.holderLaunchFeeSol };
       return send(res, 200, JSON.stringify(body), Object.assign({}, JSON_TYPE, { 'Cache-Control': 'no-store' }));
     }
     if (pathname === '/api/pads') {
@@ -524,7 +526,7 @@ function createApp(opts) {
         const dollars = (amount, mint) => (Number.isFinite(usd[mint]) && Number.isFinite(amount) ? Math.round(amount * usd[mint] * 100) / 100 : null);
         const kinds = {};
         await Promise.all(Array.from(mints).map(async m => { kinds[m] = await pairKindOf(m); }));
-        const rows = b.rows.map(r => { const p = padStore ? padStore.get(r.slug) : null; const pm = padPairMint(r.slug); return p ? Object.assign({ pairKind: kinds[pm] || '', name: p.name, accent: p.accent, logoUrl: p.logoUrl, tagline: p.tagline, pairSymbol: (padStore.settings(r.slug).pair || {}).symbol || '', ownerPct: p.ownerPct || 0, launcherPct: 100 - padStore.platformPct - (p.ownerPct || 0), platformPct: padStore.platformPct, raisedUsd: dollars(r.raisedSol, pm) }, r) : null; }).filter(Boolean);
+        const rows = b.rows.map(r => { const p = padStore ? padStore.get(r.slug) : null; const pm = padPairMint(r.slug); return p ? Object.assign({ pairKind: kinds[pm] || '', name: p.name, accent: p.accent, logoUrl: p.logoUrl, tagline: p.tagline, pairSymbol: (padStore.settings(r.slug).pair || {}).symbol || '', ownerPct: p.ownerPct || 0, holderRewards: padStore.settings(r.slug).holderRewards === true, holderFeeSol: launcher.info().holderLaunchFeeSol, launcherPct: 100 - padStore.platformPct - (p.ownerPct || 0), platformPct: padStore.platformPct, raisedUsd: dollars(r.raisedSol, pm) }, r) : null; }).filter(Boolean);
         // Pads rank by coins launched, then graduated coins, then dollars raised (a pad with no known price ranks last on that step).
         rows.sort((x, y) => (y.coins - x.coins) || (y.graduated - x.graduated) || ((y.raisedUsd || 0) - (x.raisedUsd || 0)));
         const pairedRaised = rows.filter(r => r.pairSymbol).reduce((n, r) => n + (r.raisedSol || 0), 0);
@@ -534,7 +536,7 @@ function createApp(opts) {
         const coins = coinsAll.filter(c => !old.has(c.pool)).map(c => Object.assign({}, c, { raisedUsd: dollars(c.raisedSol, padPairMint(c.pad)) }))
           .sort((x, y) => (Number(y.migrated) - Number(x.migrated)) || ((y.progress || 0) - (x.progress || 0)) || ((y.raisedUsd !== null ? y.raisedUsd : (y.raisedSol || 0)) - (x.raisedUsd !== null ? x.raisedUsd : (x.raisedSol || 0)))).slice(0, 20).map(c => {
           const p = c.pad && padStore ? padStore.get(c.pad) : null;
-          return Object.assign({}, c, { pairKind: kinds[padPairMint(c.pad)] || '', ownerPct: p ? (p.ownerPct || 0) : 0, launcherPct: p ? 100 - padStore.platformPct - (p.ownerPct || 0) : null, platformPct: padStore.platformPct, padName: p ? p.name : '', padAccent: p ? p.accent : '', pairSymbol: p ? ((padStore.settings(c.pad) || {}).pair || {}).symbol || '' : '' });
+          return Object.assign({}, c, { pairKind: kinds[padPairMint(c.pad)] || '', holderRewards: p ? padStore.settings(c.pad).holderRewards === true : false, holderFeeSol: launcher.info().holderLaunchFeeSol, ownerPct: p ? (p.ownerPct || 0) : 0, launcherPct: p ? 100 - padStore.platformPct - (p.ownerPct || 0) : null, platformPct: padStore.platformPct, padName: p ? p.name : '', padAccent: p ? p.accent : '', pairSymbol: p ? ((padStore.settings(c.pad) || {}).pair || {}).symbol || '' : '' });
         });
         return JSON.stringify({ pads: rows, coins: coins, stats: { pads: padStore ? padStore.size() : 0, coins: b.totalCoins, raisedSol: Math.max(0, b.totalRaisedSol - pairedRaised) } });
       };
@@ -652,7 +654,7 @@ function createApp(opts) {
         // Whether the coin's pad has the mascot chat on, and the mascot's name, so the page can show the right thing.
         if (r.status === 200 && padStore && r.body.pad) {
           const set = padStore.settings(r.body.pad);
-          if (set) { r.body.chat = set.ai.chat; r.body.mascotName = set.ai.mascotName; if (set.pair && set.pair.symbol) r.body.pairSymbol = set.pair.symbol; }
+          if (set) { r.body.chat = set.ai.chat; r.body.mascotName = set.ai.mascotName; r.body.holderRewards = set.holderRewards === true; if (set.pair && set.pair.symbol) r.body.pairSymbol = set.pair.symbol; }
         }
         if (r.status === 200 && r.body.links && r.body.links.website && !r.body.siteVerified && verifier.places(r.body.links.website).length) {
           r.body.verifyCode = verifier.code(r.body.pool, r.body.creator);
@@ -797,6 +799,7 @@ if (require.main === module) {
     rpcUrl: process.env.LAUNCH_RPC_URL || undefined,
     pairsRpcUrl: process.env.PAIRS_RPC_URL || undefined,
     pairTrade: process.env.PAIRS_TRADE === 'yes',
+    holderLaunchFeeSol: process.env.HOLDER_LAUNCH_FEE_SOL ? Number(process.env.HOLDER_LAUNCH_FEE_SOL) : undefined,
     showStocks: process.env.PAIRS_STOCKS === 'yes'
   });
   const launchesFile = env('LAUNCHES_FILE') || (dataDir ? path.join(dataDir, cluster === 'devnet' ? 'launches.json' : 'launches.' + cluster + '.json') : '');

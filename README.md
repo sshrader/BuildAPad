@@ -24,6 +24,8 @@ PLATFORM_FEE_WALLET=<public address> node server.js
 | Variable | Purpose |
 | --- | --- |
 | `PLATFORM_FEE_WALLET` | Public address that receives the platform's share. Required. Use a fresh wallet or a Ledger. |
+| `HOLDER_REWARDS` | Set `yes` to allow holder-rewards pads (pump.fun's native holder-rewards coins). Mainnet only. |
+| `HOLDER_LAUNCH_FEE_SOL` | Flat launch fee paid to `PLATFORM_FEE_WALLET` on holder-rewards pads. Default 0.05. |
 | `PLATFORM_SHARE_PCT` | The platform's share of creator fees, whole number 1 to 50. Suggested 10. It is written on-chain at launch and cannot change for that coin. |
 | `DATA_DIR` | Where the volume is mounted (for example `/data`). **Required for pads to survive a deploy**: pads are saved in `<DATA_DIR>/padstore.json`, pad logos in `<DATA_DIR>/pad-logos`, coin pictures in `<DATA_DIR>/art`, the launch list in `<DATA_DIR>/launches.json`. Defaults to `/data` when that folder exists, otherwise memory only. |
 | `LAUNCH_CLUSTER` | `devnet` (default) or `mainnet-beta`. |
@@ -104,3 +106,7 @@ Real money. Get a legal and security review first.
 ### Pool pair (preview)
 
 A pad can pick a pool pair from pump.fun's on-chain custom pair list (stocks, crypto, others). The list is read from pump.fun's quote-control account. On a devnet server, set `PAIRS_RPC_URL` to a mainnet RPC address (read-only) to preview the picker; without it the picker stays hidden. Launching coins on a paired pad is not switched on yet: the server answers `pair_not_ready`.
+
+## Holder-rewards pads
+
+An owner can tick **Reward holders** when building a pad. Every coin launched there is a pump.fun holder-rewards coin: all creator fees go to the coin's holders automatically, with nothing to claim and no fee split. Because pump.fun controls the coin's fee setup, no percentage cut is possible, so the platform charges the launcher a flat fee (`HOLDER_LAUNCH_FEE_SOL`, default 0.05 SOL) in the launch transaction. The pad owner earns nothing. The option is fixed once a pad is built, cannot be combined with a pool pair, and a first buy at launch is not supported yet. pump.fun can switch holder-rewards creation off, and then launches fail until it is back.

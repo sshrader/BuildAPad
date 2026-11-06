@@ -249,6 +249,14 @@ function createBuilder(web3) {
     }).instruction;
   }
 
+  // A coin paired with a token needs its two fee-vault token accounts to exist before the split is set, because the payout
+  // that runs inside the split reads them. For SOL coins these are handled by the programs themselves.
+  function createFeeVaultAtas({ mint, payer, quote }) {
+    const q = quoteOf(quote);
+    const r = resolveAccounts('fees', 'update_fee_shares_v2', { authority: payer, mint, quote_mint: q.mint, token_program: q.program, sharing_config: sharingConfigOf(mint) }, true);
+    return [r.have.pump_creator_vault, r.have.coin_creator_vault_authority].map(owner => createAtaIdempotent(payer, owner, q.mint, q.program));
+  }
+
   // update_fee_shares_v2 pays out whatever is waiting to the CURRENT shareholders before it swaps in the new list,
   // so those wallets must be passed after the fixed accounts, in the order stored on-chain. A brand new split
   // config holds just the creator (docs/instructions/CREATOR_FEE_SHARING.md), which is what Sparkpad's working
@@ -308,7 +316,7 @@ function createBuilder(web3) {
 
   return {
     ata, bondingCurveOf, sharingConfigOf, creatorVaultOf, globalPda, createAtaIdempotent,
-    createCoin, createSharingConfig, setShares, buyExactIn, sell, sweepCreatorFee, distribute, instruction, resolveAccounts
+    createCoin, createSharingConfig, createFeeVaultAtas, setShares, buyExactIn, sell, sweepCreatorFee, distribute, instruction, resolveAccounts
   };
 }
 

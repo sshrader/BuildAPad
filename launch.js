@@ -260,7 +260,9 @@ function createLauncher(opts) {
         // Fees that have built up on the curve must be swept before the creator is swapped for the split.
         const ixs = [];
         if (Number(curve.creator_fee || 0n) > 0) ixs.push(c.B.sweepCreatorFee({ payer: creatorPk, mint: b.mint, creator: creatorPk, quote }));
-        ixs.push(c.B.createSharingConfig({ mint: b.mint, payer: creatorPk }), c.B.setShares({ mint: b.mint, authority: creatorPk, shareholders: shares(b.creator, ctx && ctx.pad), currentShareholders: [creatorPk], quote }));
+        ixs.push(c.B.createSharingConfig({ mint: b.mint, payer: creatorPk }));
+        if (quote) c.B.createFeeVaultAtas({ mint: b.mint, payer: creatorPk, quote }).forEach(x => ixs.push(x));
+        ixs.push(c.B.setShares({ mint: b.mint, authority: creatorPk, shareholders: shares(b.creator, ctx && ctx.pad), currentShareholders: [creatorPk], quote }));
         return { status: 200, body: { step: 'split', transaction: await toTx(c, budget(c, CU.split).concat(ixs), creatorPk, null, table), cluster } };
       }
       if (curve.creator !== sharing) return { status: 403, body: { error: 'not_creator' } };

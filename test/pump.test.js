@@ -116,3 +116,11 @@ test('with a token pair the fee split also passes each current shareholder\'s to
   assert.equal(paired.keys.length, plain.keys.length + 1);
   assert.equal(paired.keys[paired.keys.length - 1].pubkey.toBase58(), B.ata(user, Q, TOKEN_2022).toBase58());
 });
+
+test('createFeeVaultAtas makes the two fee-vault token accounts for the pair token', () => {
+  const B = P.createBuilder(web3);
+  const mint = rnd(), user = rnd(), Q = rnd();
+  const ixs = B.createFeeVaultAtas({ mint, payer: user, quote: { mint: Q, program: 'TokenzQdBNbLqP5VEhdkAS6EPFLC1PHnBqCXEpPxuEb' } });
+  assert.equal(ixs.length, 2);
+  assert.notEqual(ixs[0].keys[1].pubkey.toBase58(), ixs[1].keys[1].pubkey.toBase58());
+});

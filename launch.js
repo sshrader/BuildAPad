@@ -507,9 +507,10 @@ function createLauncher(opts) {
       const holders = (cfg.shareholders || []).map(s => s.address);
       if (!holders.length) throw new Error('fee split has no shareholders');
       const payerPk = new c.web3.PublicKey(b.payer);
+      const quote = await quoteOfCurve(c, curve);
       const ixs = [
-        c.B.sweepCreatorFee({ payer: payerPk, mint: b.pool, creator: curve.creator }),
-        c.B.distribute({ payer: payerPk, mint: b.pool, shareholders: holders.map(a => new c.web3.PublicKey(a)), quote: await quoteOfCurve(c, curve) })
+        c.B.sweepCreatorFee({ payer: payerPk, mint: b.pool, creator: curve.creator, quote }),
+        c.B.distribute({ payer: payerPk, mint: b.pool, shareholders: holders.map(a => new c.web3.PublicKey(a)), quote })
       ];
       return { status: 200, body: { transaction: await toTx(c, budget(c, CU.distribute).concat(ixs), payerPk), waitingSol: waiting, cluster } };
     } catch (err) {

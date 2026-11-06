@@ -127,9 +127,10 @@
       <section class="group" id="g-pair-box" aria-labelledby="g-pair" hidden>
         <h3 id="g-pair">Pool pair</h3>
         <p class="hint">What every coin on your pad trades against. It is SOL unless you pick something else.</p>
-        <p class="pairnow" id="f-pair-now">SOL (default)</p>
-        <label class="check"><input type="checkbox" id="f-pair-stock"> Pair with a stock</label>
-        <label class="check"><input type="checkbox" id="f-pair-other"> Pair with crypto, memes or others</label>
+        <label class="check"><input type="checkbox" id="f-pair-sol" checked> SOL</label>
+        <label class="check"><input type="checkbox" id="f-pair-stock"> Stocks</label>
+        <label class="check"><input type="checkbox" id="f-pair-other"> Crypto / Memes</label>
+        <p class="pairnow" id="f-pair-now" hidden></p>
         <div class="field sub" id="f-pair-pick" hidden>
           <label class="field">Search the list
             <input type="text" id="f-pair-q" placeholder="Tesla, BTC, NVDA…" autocomplete="off" spellcheck="false">
@@ -138,6 +139,7 @@
             <select id="f-pair"><option value="">SOL (default)</option></select>
           </label>
         </div>
+        <p class="hint" id="f-pair-chose" hidden>Nothing picked yet, so your pad stays on SOL until you choose one.</p>
         <p class="hint" id="f-pair-note" hidden>Preview: coins on a paired pad cannot be launched yet. Launching with a pair is still being built and tested, so keep SOL for a live pad.</p>
       </section>
 

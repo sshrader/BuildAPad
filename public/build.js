@@ -31,14 +31,16 @@
   // Pool pair picker, filled from pump.fun's list. SOL by default; two checkboxes reveal the stock list and the crypto/memes/others list.
   // Hidden when the list is not available on this server.
   let pairsAll = [], pairsLoaded = false, pendingPair = '';
-  const KINDS = { stock: 'f-pair-stock', other: 'f-pair-other' };
+  const KINDS = { sol: 'f-pair-sol', stock: 'f-pair-stock', other: 'f-pair-other' };
+  // Only one box can be ticked at a time. Unticking the ticked one puts it back on SOL.
+  function pickKind(k) { Object.keys(KINDS).forEach(x => { $(KINDS[x]).checked = x === k; }); if (k === 'sol') pendingPair = ''; paintPairs(); }
   function paintPairs() {
     const sel = $('f-pair'), q = $('f-pair-q').value.trim().toLowerCase();
     const on = { stock: isOn(KINDS.stock), other: isOn(KINDS.other) };
     $('f-pair-pick').hidden = !(on.stock || on.other);
     const cur = pendingPair;
     sel.textContent = '';
-    const none = document.createElement('option'); none.value = ''; none.textContent = 'SOL (default)'; sel.appendChild(none);
+    const none = document.createElement('option'); none.value = ''; none.textContent = on.stock ? 'Choose a stock…' : 'Choose a coin…'; sel.appendChild(none);
     const groups = { stock: 'Stocks', other: 'Crypto, memes and others' };
     ['stock', 'other'].forEach(k => {
       if (!on[k]) return;
@@ -51,14 +53,14 @@
     if (!Array.from(sel.options).some(o => o.value === cur)) pendingPair = '';
     sel.value = pendingPair;
     const chosen = pairsAll.find(p => p.mint === pendingPair);
-    $('f-pair-now').textContent = chosen ? chosen.symbol + ' · ' + chosen.name : 'SOL (default)';
+    $('f-pair-now').textContent = chosen ? 'Pair: ' + chosen.symbol + ' · ' + chosen.name : ''; $('f-pair-now').hidden = !chosen;
     $('f-pair-note').hidden = !chosen;
+    $('f-pair-chose').hidden = !(on.stock || on.other) || Boolean(chosen);
   }
   function syncPairBoxes() {
     // Opening an existing pad: tick the box that holds its pair.
     const hit = pairsAll.find(p => p.mint === pendingPair);
-    if (hit) $(KINDS[hit.kind]).checked = true;
-    paintPairs();
+    pickKind(hit ? hit.kind : 'sol');
   }
   fetch('/api/pairs', { headers: { Accept: 'application/json' } }).then(r => r.json()).then(b => {
     pairsAll = (b && b.pairs) || [];
@@ -66,7 +68,7 @@
     pairsLoaded = true; $('g-pair-box').hidden = false; syncPairBoxes();
     $('f-pair').addEventListener('change', () => { pendingPair = $('f-pair').value; paintPairs(); });
     $('f-pair-q').addEventListener('input', paintPairs);
-    [KINDS.stock, KINDS.other].forEach(id => $(id).addEventListener('change', () => { if (!isOn(id) && !isOn(KINDS.stock) && !isOn(KINDS.other)) pendingPair = ''; paintPairs(); }));
+    Object.keys(KINDS).forEach(k => $(KINDS[k]).addEventListener('change', () => pickKind($(KINDS[k]).checked ? k : 'sol')));
   }).catch(() => { /* picker stays hidden */ });
 
   const isOn = id => $(id).checked;

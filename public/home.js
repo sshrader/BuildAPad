@@ -59,9 +59,10 @@
     const b = document.createElement('b'); b.textContent = p.name;
     const sm = document.createElement('small'); sm.textContent = '/p/' + p.slug;
     nm.appendChild(b); nm.appendChild(sm);
+    if (p.pairSymbol) { const pc = document.createElement('span'); pc.className = 'pairchip'; pc.textContent = p.pairSymbol + ' pair'; nm.appendChild(pc); }
     a.appendChild(logo); a.appendChild(nm);
     const nums = document.createElement('span'); nums.className = 'bnums';
-    [[p.coins, p.coins === 1 ? 'coin' : 'coins'], [fmt(p.raisedSol), 'SOL raised'], [p.graduated, 'graduated']].forEach(x => {
+    [[p.coins, p.coins === 1 ? 'coin' : 'coins'], [fmt(p.raisedSol), (p.pairSymbol || 'SOL') + ' raised'], [p.graduated, 'graduated']].forEach(x => {
       const d = document.createElement('span'); const v = document.createElement('b'); v.textContent = String(x[0]); d.appendChild(v); d.appendChild(document.createTextNode(' ' + x[1])); nums.appendChild(d);
     });
     const top = document.createElement('span'); top.className = 'btop';
@@ -106,10 +107,12 @@
     const nm = document.createElement('span'); nm.className = 'bname';
     const b = document.createElement('b'); b.textContent = c.name;
     const sm = document.createElement('small'); sm.textContent = '$' + c.symbol;
-    nm.appendChild(b); nm.appendChild(sm); a.appendChild(logo); a.appendChild(nm);
+    nm.appendChild(b); nm.appendChild(sm);
+    if (c.pairSymbol) { const pc = document.createElement('span'); pc.className = 'pairchip'; pc.textContent = c.pairSymbol + ' pair'; nm.appendChild(pc); }
+    a.appendChild(logo); a.appendChild(nm);
     const nums = document.createElement('span'); nums.className = 'bnums';
     const pct = Math.max(0, Math.min(100, Math.round((c.progress || 0) * 100)));
-    [[fmt(c.raisedSol), 'SOL raised'], [c.migrated ? 'Graduated' : pct + '%', c.migrated ? '' : 'full']].forEach(x => {
+    [[fmt(c.raisedSol), (c.pairSymbol || 'SOL') + ' raised'], [c.migrated ? 'Graduated' : pct + '%', c.migrated ? '' : 'full']].forEach(x => {
       const d = document.createElement('span'); const v = document.createElement('b'); v.textContent = String(x[0]); d.appendChild(v); if (x[1]) d.appendChild(document.createTextNode(' ' + x[1])); nums.appendChild(d);
     });
     // The pad this coin was launched on (or the platform itself, for coins launched directly).

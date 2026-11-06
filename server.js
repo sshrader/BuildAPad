@@ -492,12 +492,12 @@ function createApp(opts) {
       const hdr = Object.assign({}, JSON_TYPE, { 'Cache-Control': 'public, max-age=15' });
       const out = () => {
         const b = launches ? launches.board(10) : { rows: [], totalCoins: 0, totalRaisedSol: 0 };
-        const rows = b.rows.map(r => { const p = padStore ? padStore.get(r.slug) : null; return p ? Object.assign({ name: p.name, accent: p.accent, logoUrl: p.logoUrl, tagline: p.tagline }, r) : null; }).filter(Boolean);
+        const rows = b.rows.map(r => { const p = padStore ? padStore.get(r.slug) : null; return p ? Object.assign({ name: p.name, accent: p.accent, logoUrl: p.logoUrl, tagline: p.tagline, pairSymbol: (padStore.settings(r.slug).pair || {}).symbol || '' }, r) : null; }).filter(Boolean);
         // The official coin (and any older attempt at it) stays off the list: it has its own card above.
         const old = new Set(founder && launches ? launches.findAllByArt(founder.id).concat(launches.findAllBySymbol(founder.ticker)).map(e => e.pool) : []);
         const coins = (launches ? launches.topCoins(40) : []).filter(c => !old.has(c.pool)).slice(0, 20).map(c => {
           const p = c.pad && padStore ? padStore.get(c.pad) : null;
-          return Object.assign({}, c, { padName: p ? p.name : '', padAccent: p ? p.accent : '' });
+          return Object.assign({}, c, { padName: p ? p.name : '', padAccent: p ? p.accent : '', pairSymbol: p ? ((padStore.settings(c.pad) || {}).pair || {}).symbol || '' : '' });
         });
         return JSON.stringify({ pads: rows, coins: coins, stats: { pads: padStore ? padStore.size() : 0, coins: b.totalCoins, raisedSol: b.totalRaisedSol } });
       };

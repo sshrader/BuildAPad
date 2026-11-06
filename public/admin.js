@@ -19,6 +19,9 @@
   let busy = false;
 
   const fmt = n => Number(n).toFixed(6);
+  // The server pays nothing out below this (dust), so the page treats such a coin as having nothing waiting.
+  const MIN_TOTAL = 0.00001;
+  const claimable = p => !p.migrated && p.totalSol >= MIN_TOTAL && p.waitingSol > 0;
   const say = (t, bad) => { const s = $('status'); s.textContent = t; s.className = 'dl-status' + (bad ? ' bad' : ''); };
   const note = t => { const n = $('note'); n.textContent = t; n.hidden = !t; };
   const WHY = {
@@ -41,7 +44,7 @@
     amt.textContent = p.migrated ? 'Graduated: fees are paid out on pump.fun' : fmt(p.waitingSol) + (p.paired ? ' of its pair token' : ' SOL') + ' waiting · ' + fmt(p.totalSol) + ' all-time';
     const btn = document.createElement('button');
     btn.type = 'button'; btn.className = 'btn'; btn.textContent = 'Send out';
-    btn.disabled = busy || !(p.waitingSol > 0);
+    btn.disabled = busy || !claimable(p);
     btn.addEventListener('click', () => claim([p]));
     li.appendChild(who); li.appendChild(amt); li.appendChild(btn);
     return li;
@@ -56,8 +59,8 @@
     } else if (!data || allowed) note('');
     $('body').hidden = !allowed;
     if (!allowed) return;
-    const waiting = data.pools.filter(p => p.waitingSol > 0);
-    $('total').textContent = fmt(data.totalWaitingSol) + (data.pools.some(p => p.paired && p.waitingSol > 0) ? ' (SOL coins only; pair-token coins are listed separately)' : '');
+    const waiting = data.pools.filter(claimable);
+    $('total').textContent = fmt(data.totalWaitingSol) + (data.pools.some(p => p.paired && claimable(p)) ? ' (SOL coins only; pair-token coins are listed separately)' : '');
     $('count').textContent = String(data.pools.length);
     $('claim-all').disabled = busy || !waiting.length;
     $('reload').disabled = busy;
@@ -92,7 +95,7 @@
     let claimed = 0, total = 0;
     try {
       for (const p of list) {
-        if (p.migrated || !(p.waitingSol > 0)) continue;
+        if (!claimable(p)) continue;
         say('Preparing the payout for ' + (names[p.pool] || p.pool.slice(0, 6) + '…') + '…');
         const res = await fetch('/api/admin/claim', { method: 'POST', headers: { 'Content-Type': 'application/json' }, body: JSON.stringify({ pool: p.pool, claimer: wallet }) });
         const body = await res.json().catch(() => null);
@@ -108,6 +111,7 @@
         if (state !== 'confirmed') { say(state === 'failed' ? 'A claim failed on-chain. Refresh and try again.' : 'Not confirmed yet. Refresh in a minute.', true); break; }
         claimed++; total += body.waitingSol || 0;
       }
+      if (!claimed && $('status').textContent.indexOf('Preparing') === 0) say('Nothing to send out right now: the waiting fees are too small to pay out.');
       if (claimed) say('Sent ✓ ' + claimed + ' coin' + (claimed === 1 ? '' : 's') + ', about ' + fmt(total) + ' SOL, paid out to the creator and platform wallets.');
     } catch (err) {
       const m = err && err.message ? String(err.message) : '';

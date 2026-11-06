@@ -34,3 +34,16 @@ const q = await connection.getAccountInfo(qc);
 if (!q) { console.log('\nNo quote-control account on this network (no custom pairs set up).'); process.exit(0); }
 const ctl = pump.decodeAccount(pump.IDLS.pump, 'QuoteControl', q.data, web3);
 await show('Custom pairs (quote-control)', (ctl.mints || []).map(x => x.mint));
+
+// Extra: look for well-known mints inside the raw account bytes, in case the layout in our program file is out of date.
+const KNOWN = { USDC: 'EPjFWdd5AufqSSqeM2qN1xzybapC8G4wEGGkZwyTDt1v', USDT: 'Es9vMFrzaCERmJfrF4H2FYD4KCoNkY11McCe8BenwNYB', WSOL: 'So11111111111111111111111111111111111111112' };
+const scan = (label, data) => {
+  console.log('\n' + label + ': ' + data.length + ' bytes');
+  for (const [n, a] of Object.entries(KNOWN)) {
+    const at = Buffer.from(data).indexOf(new PublicKey(a).toBuffer());
+    console.log('  contains ' + n + ': ' + (at >= 0 ? 'yes, at byte ' + at : 'no'));
+  }
+};
+scan('Global account', g.data);
+scan('quote-control account', q.data);
+console.log('quote-control address:', qc.toBase58());

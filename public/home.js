@@ -165,6 +165,8 @@
       const owner = Math.min(20, c.maxOwnerPct || 0), launcher = 100 - c.platformPct - owner;
       $('fb-l').style.width = launcher + '%'; $('fb-o').style.width = owner + '%'; $('fb-p').style.width = c.platformPct + '%';
       $('fk-l').textContent = launcher + '%'; $('fk-o').textContent = owner + '%'; $('fk-p').textContent = c.platformPct + '%';
+      const f2 = n => String(Number((n / 100).toFixed(3)));
+      if ($('fl-max')) { $('fl-max').textContent = c.maxOwnerPct; $('fl-plat').textContent = c.platformPct; $('fe-o').textContent = owner; $('fe-l').textContent = f2(launcher); $('fe-ow').textContent = f2(owner); $('fe-p').textContent = f2(c.platformPct); }
       $('fees-note').textContent = 'Shown with an example ' + owner + '% owner share. You can choose anything from 0% up to ' + c.maxOwnerPct + '%.';
     })
     .catch(() => { /* the example stays as written */ });

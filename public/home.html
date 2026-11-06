@@ -109,7 +109,14 @@
     <div class="aboutgrid">
       <div class="stack">
         <h2 id="fees-h">Fees, split on-chain</h2>
-        <p class="about" id="fees-text">Every trade on a pump.fun coin pays a creator fee. On a pad, that fee is shared three ways by pump.fun's own fee-sharing, so nobody has to trust anybody to pay out.</p>
+        <p class="about" id="fees-text">Every trade on a pump.fun coin pays a creator fee. On a pad, that fee is shared three ways by pump.fun's own fee-sharing, so nobody has to trust anybody to pay out. The split is written on-chain when a coin launches and nobody can change it afterwards, not even us.</p>
+        <ul class="feelist">
+          <li><b>The coin's launcher</b> keeps everything that is left, and always at least half.</li>
+          <li><b>The pad owner</b> gets the share they chose when they built the pad: from 0% up to <span id="fl-max">40</span>%.</li>
+          <li><b>{{name}}</b> gets <span id="fl-plat">10</span>% of every coin's fees.</li>
+        </ul>
+        <p class="about" id="fees-example">For example, if a coin earns 1 SOL in creator fees on a pad with a <span id="fe-o">20</span>% owner share: the launcher gets <b id="fe-l">0.70</b> SOL, the pad owner <b id="fe-ow">0.20</b> SOL, and {{name}} <b id="fe-p">0.10</b> SOL.</p>
+        <p class="hint">Fees wait on the coin until someone presses Send out fees on its page. Anyone can press it, and it always pays the wallets in the split, never the person who pressed. On a pad with a pool pair other than SOL, the same split is paid in that token. Creator fees are only a slice of each trade, not the trading volume.</p>
       </div>
       <div class="stack">
         <div class="feebar" role="img" aria-label="Example split"><i class="f-launcher" id="fb-l" style="width:70%"></i><i class="f-owner" id="fb-o" style="width:20%"></i><i class="f-platform" id="fb-p" style="width:10%"></i></div>

@@ -32,6 +32,7 @@
     bad_amount: 'Enter an amount between 0.01 and 5 SOL.',
     curve_full: 'The curve is full and moving to its DEX pool, so there is nothing left to buy here.',
     migrated: 'This token has moved to its DEX pool and cannot be bought here any more.',
+    no_pair_balance: 'Your wallet does not hold enough of the pair token for this buy.',
     pair_trade_not_ready: 'Buying coins paired with another token is not switched on yet.',
     not_creator: 'Only the wallet that launched this token can claim its creator fees. Switch Phantom to that wallet.',
     nothing_to_claim: 'There are no creator fees to claim yet.',
@@ -44,7 +45,7 @@
     if (!pool) return;
     const pct = Math.round(pool.progress * 100);
     $('t-bar').style.width = pct + '%';
-    $('t-prog').textContent = pool.raisedSol.toFixed(3) + ' of ' + pool.thresholdSol.toFixed(3) + ' SOL raised · ' + pct + '%' +
+    $('t-prog').textContent = pool.raisedSol.toFixed(3) + ' of ' + pool.thresholdSol.toFixed(3) + ' ' + (pool.paired ? 'of the pair token' : 'SOL') + ' raised · ' + pct + '%' +
       (pool.migrated ? ' · moved to its DEX pool' : pool.curveFull ? ' · curve full' : '');
     $('t-buy').disabled = busy || pool.curveFull;
   }
@@ -129,7 +130,7 @@
   async function buy() {
     if (!pool || busy) return;
     const sol = Number($('t-amt').value);
-    if (!Number.isFinite(sol) || sol < 0.01 || sol > 5) { fail(WHY.bad_amount); return; }
+    if (!Number.isFinite(sol) || (sol < 0.01 && !(pool && pool.paired)) || sol <= 0 || sol > 5) { fail(WHY.bad_amount); return; }
     fail('');
     busy = true; renderInfo();
     try {

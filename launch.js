@@ -396,15 +396,32 @@ function createLauncher(opts) {
     // A pad's owner can block wallets from buying through this site. (Anyone can still buy on pump.fun itself.)
     if (ctx && typeof ctx.isDenied === 'function' && ctx.isDenied(b.pool, b.buyer)) return { status: 403, body: { error: 'denied' } };
     const sol = Number(b.sol);
-    if (!Number.isFinite(sol) || sol < MIN_BUY_SOL || sol > MAX_BUY_SOL) return { status: 400, body: { error: 'bad_amount' } };
+    if (!Number.isFinite(sol) || sol <= 0 || sol > MAX_BUY_SOL || (sol < MIN_BUY_SOL && !o.pairTrade)) return { status: 400, body: { error: 'bad_amount' } };
     try {
       const c = await chain();
       const curve = await readCurve(c, b.pool);
       if (!curve) return { status: 404, body: { error: 'pool_not_found' } };
       if (curve.complete) return { status: 409, body: { error: 'migrated' } };
-      // Buying with a pair token is not switched on until it has been proven; a SOL buy would only fail.
-      if (await quoteOfCurve(c, curve)) return { status: 409, body: { error: 'pair_trade_not_ready' } };
       const buyerPk = new c.web3.PublicKey(b.buyer);
+      const quote = await quoteOfCurve(c, curve);
+      if (quote) {
+        // Buying with a pair token is off until it has been proven (PAIRS_TRADE=yes). The buyer pays in the pair token.
+        if (!o.pairTrade) return { status: 409, body: { error: 'pair_trade_not_ready' } };
+        const amount = BigInt(Math.floor(sol * Math.pow(10, quote.decimals)));
+        let have = 0n;
+        try {
+          const bal = await c.connection.getTokenAccountBalance(c.B.ata(buyerPk, quote.mint, quote.program));
+          have = BigInt(bal && bal.value ? bal.value.amount : 0);
+        } catch (e) { have = 0n; }
+        if (have < amount) return { status: 409, body: { error: 'no_pair_balance' } };
+        const glob = await readGlobal(c);
+        const min = pump.minTokensForBuy(curve, amount, 500, pump.feeGuessBps(glob));
+        if (min <= 0n) return { status: 400, body: { error: 'bad_amount' } };
+        const recipients = Array.isArray(glob.buyback_fee_recipients) && glob.buyback_fee_recipients.length ? glob.buyback_fee_recipients : pump.BUYBACK_RECIPIENTS;
+        const ixs = [c.B.createAtaIdempotent(buyerPk, buyerPk, b.pool, pump.TOKEN_2022),
+          c.B.buyExactIn({ user: buyerPk, mint: b.pool, lamports: amount, minTokensOut: min, buybackRecipient: recipients[0], quote })];
+        return { status: 200, body: { transaction: await toTx(c, budget(c, CU.buy).concat(ixs), buyerPk), partialFill: false, cluster } };
+      }
       const transaction = await buildBuy(c, buyerPk, b.pool, curve, sol, 500);
       return { status: 200, body: { transaction, partialFill: false, cluster } };
     } catch (err) {

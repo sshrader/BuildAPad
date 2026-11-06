@@ -15,6 +15,7 @@ $env:LAUNCH_RPC_URL   = $rpc
 $env:PAIRS_RPC_URL    = $rpc
 $env:PLATFORM_FEE_WALLET = $fee
 $env:PAIRS_LAUNCH     = "yes"
+$env:PAIRS_TRADE     = "yes"
 $env:PORT             = "8080"
 $env:DATA_DIR         = (Join-Path $PSScriptRoot "mainnet-data")
 New-Item -ItemType Directory -Force -Path $env:DATA_DIR | Out-Null

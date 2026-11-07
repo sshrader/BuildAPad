@@ -139,8 +139,9 @@
     $('f-pct-out').textContent = owner + '%';
     const hold = isOn('f-holder');
     $('g-fees-box').hidden = hold;
-    $('g-holder-box').hidden = !(cfg.holderRewards || hold);
-    $('f-holder').disabled = Boolean(editing) || Boolean(pendingPair);
+    $('g-holder-box').hidden = false;
+    $('f-holder-soon').hidden = Boolean(cfg.holderRewards);
+    $('f-holder').disabled = !cfg.holderRewards || Boolean(editing) || Boolean(pendingPair);
     $('f-holder-fee').textContent = String(cfg.holderLaunchFeeSol === undefined ? 0.05 : cfg.holderLaunchFeeSol);
     if ($('g-pair-box')) $('g-pair-box').classList.toggle('off', hold);
     document.querySelectorAll('#f-swatches .swatch').forEach(b => b.setAttribute('aria-pressed', String(b.dataset.c === state.accent)));
